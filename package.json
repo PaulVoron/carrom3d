@@ -1,0 +1,19 @@
+{
+  "name": "carrom-3d",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.11.2",
+    "dat.gui": "^0.7.9",
+    "three": "^0.164.1"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  }
+}

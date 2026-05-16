@@ -1,0 +1,8 @@
+node_modules/
+.vscode/
+TEMP/
+eslint.config.mjs
+temp.html
+.DS_Store
+
+dist/
