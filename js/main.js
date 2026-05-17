@@ -493,13 +493,14 @@ function setupPockets() {
   ];
 
   pocketPositions.forEach((pos) => {
-    // Поднимаем сенсор точно на уровень стола (Y = 0)
+    // Поднимаем центр датчика высоко над столом (Y = 0.05)
     const bodyDesc = RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(pos.x, 0, pos.z);
+      .setTranslation(pos.x, 0.05, pos.z);
     const body = world.createRigidBody(bodyDesc);
     
-    // Делаем цилиндр лузы высоким (10 см), чтобы фишка гарантированно в него вошла
-    const colliderDesc = RAPIER.ColliderDesc.cylinder(0.05, pocketRadius).setSensor(true);
+    // Делаем цилиндр очень высоким (полу-высота 0.1 = общая высота 20 см!)
+    // Радиус делаем чуть меньше (0.8), чтобы фишка проваливалась только если центр над лузой
+    const colliderDesc = RAPIER.ColliderDesc.cylinder(0.1, pocketRadius * 0.8).setSensor(true);
     const collider = world.createCollider(colliderDesc, body);
     pocketColliders.push(collider);
   });
@@ -572,6 +573,15 @@ function setupPhysics(model) {
         .setFriction(0.1)     // Очень низкое трение (имитация пудры)
         .setRestitution(0.1); // Гасим отскок от пола
       world.createCollider(floorColliderDesc, floorBody);
+
+      // ДОБАВЛЯЕМ НЕВИДИМУЮ КРЫШКУ
+      const roofHeight = 0.04; // Крышка на высоте 4 см от стола
+      const roofBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, roofHeight, 0);
+      const roofBody = world.createRigidBody(roofBodyDesc);
+      const roofColliderDesc = RAPIER.ColliderDesc.cuboid(2.0, 0.01, 2.0)
+        .setFriction(0.0)
+        .setRestitution(0.2); // Мягко гасим удар, если фишка подпрыгнула
+      world.createCollider(roofColliderDesc, roofBody);
     }
 
     if (obj.name === 'mesh_carrom_man') {
@@ -619,7 +629,7 @@ function setupPhysics(model) {
     const perfectPositions = getCarromPositions(boardCenter, officialCoinDia, rotation45);
 
     // Сохраняем физический радиус фишки для валидации
-    coinPhysRadius = (officialCoinDia / 2) * 0.98;
+    coinPhysRadius = (officialCoinDia / 2) * 1;
 
     for (let i = 0; i < 19; i++) {
       const coinClone = coinTemplate.clone();
@@ -640,7 +650,7 @@ function setupPhysics(model) {
       // Origin в центре геометрии, значит центр фишки должен быть на halfHeight выше стола
       spawnPos.y = boardTopY + officialCoinHalfHeight;
       
-      const physRadius = (officialCoinDia / 2) * 0.98; // Зазор для стабильности
+      const physRadius = (officialCoinDia / 2) * 1; // Зазор для стабильности
       const body = createSimplePhysicsBody(physRadius, officialCoinHalfHeight, spawnPos);
       
       physicsBodies.push({ mesh: coinClone, body });
@@ -674,7 +684,7 @@ function setupPhysics(model) {
     strikerSpawnY = boardTopY + officialStrikerHalfHeight;
     const spawnPos = new THREE.Vector3(0, strikerSpawnY, PLAYER_1_LINE_Z);
 
-    strikerPhysRadius = (officialStrikerDia / 2) * 0.98;
+    strikerPhysRadius = (officialStrikerDia / 2) * 1;
 
     // В режиме PLACEMENT — kinematicPositionBased (не отталкивает фишки)
     const body = createKinematicPhysicsBody(strikerPhysRadius, officialStrikerHalfHeight, spawnPos);
