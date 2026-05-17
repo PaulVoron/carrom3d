@@ -29,6 +29,17 @@ const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Горизонтальная плоскость Y
 
+// === AIMING STATE ===
+let isAiming = false;
+let aimLine = null;
+let aimStartPoint = new THREE.Vector3(); // Точка клика
+let currentImpulse = new THREE.Vector3(); // Вектор удара
+const MAX_PULL_DISTANCE = 0.1;
+const FORCE_MULTIPLIER = 0.002;
+
+// === MOVING LOGIC ===
+let checkSleepFrameCount = 0;
+
 // === UI BUTTON ===
 let confirmButton = null;
 
@@ -134,54 +145,116 @@ function setupPlacementControls() {
 }
 
 function onPointerDown(event) {
-  if (gameState !== 'PLACEMENT' || !strikerEntry) return;
+  if (gameState === 'PLACEMENT' && strikerEntry) {
+    updatePointerNDC(event);
+    raycaster.setFromCamera(pointerNDC, camera);
 
-  updatePointerNDC(event);
-  raycaster.setFromCamera(pointerNDC, camera);
+    // Проверяем, попал ли клик на биток
+    const intersects = raycaster.intersectObject(strikerEntry.mesh, true);
+    if (intersects.length > 0) {
+      isDragging = true;
+      // Блокируем OrbitControls, чтобы камера не вращалась при перетаскивании
+      if (controls) controls.enabled = false;
+      // Обновляем плоскость перетаскивания на высоту битка
+      dragPlane.set(new THREE.Vector3(0, 1, 0), -strikerSpawnY);
+    }
+  } else if (gameState === 'AIMING' && strikerEntry) {
+    updatePointerNDC(event);
+    raycaster.setFromCamera(pointerNDC, camera);
 
-  // Проверяем, попал ли клик на биток
-  const intersects = raycaster.intersectObject(strikerEntry.mesh, true);
-  if (intersects.length > 0) {
-    isDragging = true;
-    // Блокируем OrbitControls, чтобы камера не вращалась при перетаскивании
-    if (controls) controls.enabled = false;
-    // Обновляем плоскость перетаскивания на высоту битка
-    dragPlane.set(new THREE.Vector3(0, 1, 0), -strikerSpawnY);
+    const intersects = raycaster.intersectObject(strikerEntry.mesh, true);
+    if (intersects.length > 0) {
+      isAiming = true;
+      if (controls) controls.enabled = false;
+      dragPlane.set(new THREE.Vector3(0, 1, 0), -strikerSpawnY);
+      
+      // Запоминаем стартовую точку
+      if (raycaster.ray.intersectPlane(dragPlane, aimStartPoint)) {
+        // Успешно нашли точку на плоскости
+      }
+    }
   }
 }
 
 function onPointerMove(event) {
-  if (gameState !== 'PLACEMENT' || !strikerEntry) return;
-  if (!isDragging) return;
+  if (gameState === 'PLACEMENT' && strikerEntry && isDragging) {
+    updatePointerNDC(event);
+    raycaster.setFromCamera(pointerNDC, camera);
 
-  updatePointerNDC(event);
-  raycaster.setFromCamera(pointerNDC, camera);
+    // Находим точку пересечения луча с горизонтальной плоскостью
+    const intersection = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(dragPlane, intersection)) {
+      // Ограничиваем X в пределах базовой линии
+      const clampedX = THREE.MathUtils.clamp(intersection.x, PLAYER_1_MIN_X, PLAYER_1_MAX_X);
 
-  // Находим точку пересечения луча с горизонтальной плоскостью
-  const intersection = new THREE.Vector3();
-  if (raycaster.ray.intersectPlane(dragPlane, intersection)) {
-    // Ограничиваем X в пределах базовой линии
-    const clampedX = THREE.MathUtils.clamp(intersection.x, PLAYER_1_MIN_X, PLAYER_1_MAX_X);
+      // Перемещаем физическое тело (kinematic) — Y и Z заблокированы
+      strikerEntry.body.setNextKinematicTranslation(
+        { x: clampedX, y: strikerSpawnY, z: PLAYER_1_LINE_Z },
+        true
+      );
 
-    // Перемещаем физическое тело (kinematic) — Y и Z заблокированы
-    strikerEntry.body.setNextKinematicTranslation(
-      { x: clampedX, y: strikerSpawnY, z: PLAYER_1_LINE_Z },
-      true
-    );
+      // Сразу синхронизируем визуал (для мгновенного отклика)
+      strikerEntry.mesh.position.set(clampedX, strikerSpawnY, PLAYER_1_LINE_Z);
 
-    // Сразу синхронизируем визуал (для мгновенного отклика)
-    strikerEntry.mesh.position.set(clampedX, strikerSpawnY, PLAYER_1_LINE_Z);
+      // Проверяем пересечения с фишками
+      validatePlacement(clampedX);
+    }
+  } else if (gameState === 'AIMING' && isAiming && strikerEntry) {
+    updatePointerNDC(event);
+    raycaster.setFromCamera(pointerNDC, camera);
 
-    // Проверяем пересечения с фишками
-    validatePlacement(clampedX);
+    const intersection = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(dragPlane, intersection)) {
+      // Вычисляем вектор от битка до курсора (игрок тянет назад)
+      const pullVector = new THREE.Vector3().subVectors(intersection, aimStartPoint);
+      
+      // Ограничиваем максимальную длину вектора
+      if (pullVector.length() > MAX_PULL_DISTANCE) {
+        pullVector.setLength(MAX_PULL_DISTANCE);
+      }
+      
+      // Инвертируем: вектор удара направлен в противоположную сторону
+      currentImpulse.copy(pullVector).multiplyScalar(-1);
+      
+      if (currentImpulse.lengthSq() > 0.00001) {
+        aimLine.visible = true;
+        aimLine.position.copy(strikerEntry.mesh.position);
+        aimLine.position.y += 0.001; // Приподнимаем, чтобы не было Z-fighting
+        
+        aimLine.setDirection(currentImpulse.clone().normalize());
+        // Длина линии пропорциональна силе натяжения
+        aimLine.setLength(currentImpulse.length() * 2); 
+      } else {
+        aimLine.visible = false;
+      }
+    }
   }
 }
 
 function onPointerUp() {
-  if (isDragging) {
-    isDragging = false;
-    // Возвращаем OrbitControls
-    if (controls) controls.enabled = true;
+  if (gameState === 'PLACEMENT') {
+    if (isDragging) {
+      isDragging = false;
+      // Возвращаем OrbitControls
+      if (controls) controls.enabled = true;
+    }
+  } else if (gameState === 'AIMING') {
+    if (isAiming) {
+      isAiming = false;
+      if (controls) controls.enabled = true;
+      aimLine.visible = false;
+      
+      if (currentImpulse.lengthSq() > 0.00001) {
+        // Применяем импульс
+        const impulse = currentImpulse.clone().multiplyScalar(FORCE_MULTIPLIER);
+        strikerEntry.body.applyImpulse({ x: impulse.x, y: 0, z: impulse.z }, true);
+        
+        // Переходим в состояние движения
+        gameState = 'MOVING';
+        checkSleepFrameCount = 0;
+        console.log('🎱 State → MOVING: Удар произведён!');
+      }
+    }
   }
 }
 
@@ -251,6 +324,17 @@ function setStrikerOverlapVisual(isOverlapping) {
   });
 }
 
+function setupAimLine() {
+  const dir = new THREE.Vector3(0, 0, -1);
+  const origin = new THREE.Vector3(0, 0, 0);
+  const length = 0.1;
+  const hex = 0xff0000;
+
+  aimLine = new THREE.ArrowHelper(dir, origin, length, hex, 0.02, 0.01);
+  aimLine.visible = false;
+  scene.add(aimLine);
+}
+
 // --- INIT ---
 
 async function init() {
@@ -269,6 +353,7 @@ async function init() {
 
   setupPhysics(model);
   setupPockets();
+  setupAimLine();
 
   // Прогоняем физику для "осаживания" фишек на поверхность стола
   // (гравитация усаживает всё на точные позиции за ~1 секунду симуляции)
@@ -309,6 +394,32 @@ function updatePhysics() {
   if (gameState !== 'PLACEMENT') {
     world.step();
     checkPocketIntersections();
+  }
+
+  // --- ЛОГИКА ЗАВЕРШЕНИЯ ХОДА ---
+  if (gameState === 'MOVING') {
+    checkSleepFrameCount++;
+    if (checkSleepFrameCount % 30 === 0) { // Проверяем каждую полсекунды (при 60fps)
+      let allSleeping = true;
+      for (const entry of physicsBodies) {
+        if (entry.body.isEnabled() && entry.body.bodyType() === RAPIER.RigidBodyType.Dynamic) {
+          const linvel = entry.body.linvel();
+          const angvel = entry.body.angvel();
+          
+          const speedSq = linvel.x * linvel.x + linvel.y * linvel.y + linvel.z * linvel.z;
+          const rotSpeedSq = angvel.x * angvel.x + angvel.y * angvel.y + angvel.z * angvel.z;
+          
+          if (speedSq > 0.0001 || rotSpeedSq > 0.0001) {
+            allSleeping = false;
+            break;
+          }
+        }
+      }
+      
+      if (allSleeping) {
+        endTurn();
+      }
+    }
   }
 
   const currentTime = performance.now();
@@ -384,6 +495,31 @@ function processPocketResult(entry) {
   if (window.onPocketEnter) {
     window.onPocketEnter(mesh.userData.type, mesh.userData.id);
   }
+}
+
+function endTurn() {
+  console.log('🎱 State → PLACEMENT: Ход завершен, возвращаем биток.');
+  
+  if (strikerEntry && strikerEntry.body.isEnabled()) {
+    // Переводим биток обратно в кинематический режим
+    strikerEntry.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+    
+    // Сбрасываем скорости в ноль
+    strikerEntry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    strikerEntry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    
+    // Возвращаем биток на стартовую позицию Игрока 1
+    const resetPos = { x: 0, y: strikerSpawnY, z: PLAYER_1_LINE_Z };
+    strikerEntry.body.setTranslation(resetPos, true);
+    strikerEntry.body.setNextKinematicTranslation(resetPos, true);
+    strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
+    
+    // Проверяем валидность новой позиции (чтобы UI кнопка правильно реагировала)
+    validatePlacement(0);
+  }
+
+  gameState = 'PLACEMENT';
+  updateButtonVisibility();
 }
 
 // Главная функция настройки сцены
