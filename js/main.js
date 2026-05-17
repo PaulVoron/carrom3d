@@ -1,13 +1,9 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { create3DScene, loadModel, scene, camera, renderer, canvas, controls } from './3d-scene.js';
+import { create3DScene, loadModel, scene, camera, renderer, controls } from './3d-scene.js';
 
 let world;
 let physicsBodies = []; // Массив объектов: { mesh, body }
-let pocketColliders = []; // Массив колайдеров луз
-
-// Очередь для обработки падения фишек в лузу
-const fallingQueue = new Map();
 
 // === STATE MACHINE ===
 let gameState = 'PLACEMENT'; // Состояния: PLACEMENT, AIMING, MOVING
@@ -15,7 +11,7 @@ let gameState = 'PLACEMENT'; // Состояния: PLACEMENT, AIMING, MOVING
 // === НАСТРОЙКИ ФИЗИКИ (Единый пульт управления) ===
 const PHYSICS = {
   damping: 0.3,           // Скольжение (меньше = дольше катятся)
-  friction: 0.1,          // Трение доски (пудра)
+  friction: 0.05,          // Трение доски (пудра)
   restitution: 0.7,       // Упругость фишек (отскок друг от друга)
   boardRestitution: 0.6,  // Упругость бортов стола
   
@@ -25,8 +21,13 @@ const PHYSICS = {
   
   // Настройки Рогатки
   maxPullDistance: 0.15,  // Максимальная длина оттяжки (15 см)
-  strikerForce: 0.5,      // Множитель силы импульса
-  solverIterations: 10    // Точность физики (спасает от проваливаний сквозь текстуры)
+  strikerForce: 0.7,      // Множитель силы импульса
+  solverIterations: 15,   // Точность физики (спасает от проваливаний сквозь текстуры)
+  subStepping: 4,         // УБИЙЦА БАГОВ: Считаем коллизии 240 раз в секунду!
+  
+  // Настройки Луз
+  pocketRadius: 0.02225,  // Радиус лузы (44.5 мм / 2)
+  pocketFallDepth: -0.1   // На какой глубине удалять фишку со сцены
 };
 
 // === STRIKER PLACEMENT CONSTANTS ===
@@ -59,7 +60,6 @@ let checkSleepFrameCount = 0;
 let confirmButton = null;
 
 // --- UI ---
-
 function createUI() {
   confirmButton = document.createElement('button');
   confirmButton.id = 'btn-confirm-placement';
@@ -260,6 +260,9 @@ function onPointerUp() {
       aimLine.visible = false;
       
       if (currentImpulse.lengthSq() > 0.00001) {
+        // БУДИМ ВСЕ ФИШКИ НА СТОЛЕ ПЕРЕД УДАРОМ
+        physicsBodies.forEach(b => { if (b.body && b.body.isEnabled()) b.body.wakeUp(); });
+
         // Применяем импульс
         const impulse = currentImpulse.clone().multiplyScalar(PHYSICS.strikerForce);
         strikerEntry.body.applyImpulse({ x: impulse.x, y: 0, z: impulse.z }, true);
@@ -351,7 +354,6 @@ function setupAimLine() {
 }
 
 // --- INIT ---
-
 async function init() {
   await RAPIER.init();
   
@@ -362,6 +364,9 @@ async function init() {
   // Увеличиваем количество итераций решателя. Это убьет баг с прохождением фишек друг сквозь друга!
   world.numSolverIterations = PHYSICS.solverIterations;
 
+  // Включаем Sub-stepping для защиты от "туннелирования" сквозь фишки
+  world.integrationParameters.maxCcdSubsteps = PHYSICS.subStepping;
+
   // Инициализируем визуальную сцену
   await create3DScene(updatePhysics);
 
@@ -370,7 +375,6 @@ async function init() {
   if (!model) return;
 
   setupPhysics(model);
-  setupPockets();
   setupAimLine();
 
   // Прогоняем физику для "осаживания" фишек на поверхность стола
@@ -445,15 +449,6 @@ function updatePhysics() {
   physicsBodies.forEach((entry) => {
     const { mesh, body } = entry; 
 
-    // Логика задержки (чтобы игрок увидел, как фишка проваливается в лузу)
-    if (fallingQueue.has(body.handle)) {
-      const fallStartTime = fallingQueue.get(body.handle);
-      if (currentTime - fallStartTime > 250) {
-        processPocketResult(entry);
-        fallingQueue.delete(body.handle);
-      }
-    }
-
     // В PLACEMENT биток управляется напрямую из drag-хендлера, пропускаем sync
     if (gameState === 'PLACEMENT' && entry === strikerEntry) return;
 
@@ -469,40 +464,18 @@ function updatePhysics() {
 }
 
 function checkPocketIntersections() {
-  pocketColliders.forEach((pocketCollider) => {
-    world.intersectionsWith(pocketCollider, (hitHandle) => {
-      const bodyEntry = physicsBodies.find(b => b.body.handle === hitHandle);
-      if (bodyEntry && !fallingQueue.has(hitHandle)) {
-        fallingQueue.set(hitHandle, performance.now());
-      }
-      return true;
-    });
-  });
-}
-
-function setupPockets() {
-  const halfSize = 0.735 / 2;
-  const pocketRadius = 0.0445 / 2;
-  const offset = halfSize - pocketRadius;
-
-  const pocketPositions = [
-    { x: offset, z: offset },
-    { x: offset, z: -offset },
-    { x: -offset, z: offset },
-    { x: -offset, z: -offset }
-  ];
-
-  pocketPositions.forEach((pos) => {
-    // Поднимаем центр датчика высоко над столом (Y = 0.05)
-    const bodyDesc = RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(pos.x, 0.05, pos.z);
-    const body = world.createRigidBody(bodyDesc);
+  physicsBodies.forEach((entry) => {
+    const { mesh, body } = entry;
     
-    // Делаем цилиндр очень высоким (полу-высота 0.1 = общая высота 20 см!)
-    // Радиус делаем чуть меньше (0.8), чтобы фишка проваливалась только если центр над лузой
-    const colliderDesc = RAPIER.ColliderDesc.cylinder(0.1, pocketRadius * 0.8).setSensor(true);
-    const collider = world.createCollider(colliderDesc, body);
-    pocketColliders.push(collider);
+    if (!body.isEnabled()) return;
+
+    const pos = body.translation();
+    
+    // Если фишка провалилась глубоко под стол — удаляем её
+    if (pos.y < PHYSICS.pocketFallDepth) {
+      console.log(`🕳️ Успешное попадание: ${mesh.userData.type}`);
+      processPocketResult(entry);
+    }
   });
 }
 
@@ -510,7 +483,7 @@ function processPocketResult(entry) {
   const { mesh, body } = entry;
   body.setLinvel({ x: 0, y: 0, z: 0 }, true);
   body.sleep();
-  body.setEnabled(false);
+  body.setEnabled(false); 
   mesh.visible = false;
 
   if (window.onPocketEnter) {
@@ -553,36 +526,90 @@ function setupPhysics(model) {
   model.updateMatrixWorld(true);
 
   model.traverse((obj) => {
-    // Борта (Trimesh для правильного отскока)
-    if (obj.name === 'mesh_board_frame') {
-      createTrimeshBody(obj);
-    }
-    
-    // Поверхность стола (Идеально гладкий физический куб)
+    // Поверхность стола (Сборный пол с реальными дырками в углах)
+    // Поверхность стола (Сборный пол с реальными дырками + Бетонные борта)
     if (obj.name === 'mesh_board_surface') {
-      // 1. Измеряем точную высоту верхней грани деревянной текстуры
-      boardTopY = 0.002;
+      const bbox = new THREE.Box3().setFromObject(obj);
+      boardTopY = 0.001; 
 
-      const floorHalfHeight = 0.05; // Половина толщины пола (10см)
-      const floorCenterY = boardTopY - floorHalfHeight; // Верхняя грань куба будет СТРОГО на boardTopY
+      const minX = bbox.min.x;
+      const maxX = bbox.max.x;
+      const minZ = bbox.min.z;
+      const maxZ = bbox.max.z;
+
+      const widthX = maxX - minX;
+      const widthZ = maxZ - minZ;
+      const cx = (minX + maxX) / 2;
+      const cz = (minZ + maxZ) / 2;
+
+      const hs = PHYSICS.pocketRadius * 2.2; 
+
+      const floorHalfHeight = 0.05; 
+      const floorCenterY = boardTopY - floorHalfHeight; 
       
+      // === 1. СОЗДАЕМ БАЗОВОЕ ТЕЛО ПОЛА ===
       const floorBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, floorCenterY, 0);
       const floorBody = world.createRigidBody(floorBodyDesc);
       
-      const floorColliderDesc = RAPIER.ColliderDesc.cuboid(2.0, floorHalfHeight, 2.0)
-        .setFriction(0.1)     // Очень низкое трение (имитация пудры)
-        .setRestitution(0.1); // Гасим отскок от пола
-      world.createCollider(floorColliderDesc, floorBody);
+      // === 2. ПРИКРЕПЛЯЕМ 3 ПЛИТЫ С ДЫРКАМИ ===
+      const middleCollider = RAPIER.ColliderDesc.cuboid(widthX / 2, floorHalfHeight, (widthZ - hs * 2) / 2)
+        .setTranslation(cx, 0, cz)
+        .setFriction(PHYSICS.friction)
+        .setRestitution(0.1);
+      world.createCollider(middleCollider, floorBody);
 
-      // ДОБАВЛЯЕМ НЕВИДИМУЮ КРЫШКУ
-      const roofHeight = 0.04; // Крышка на высоте 4 см от стола
+      const topCollider = RAPIER.ColliderDesc.cuboid((widthX - hs * 2) / 2, floorHalfHeight, hs / 2)
+        .setTranslation(cx, 0, minZ + hs / 2)
+        .setFriction(PHYSICS.friction)
+        .setRestitution(0.1);
+      world.createCollider(topCollider, floorBody);
+
+      const bottomCollider = RAPIER.ColliderDesc.cuboid((widthX - hs * 2) / 2, floorHalfHeight, hs / 2)
+        .setTranslation(cx, 0, maxZ - hs / 2)
+        .setFriction(PHYSICS.friction)
+        .setRestitution(0.1);
+      world.createCollider(bottomCollider, floorBody);
+
+      // === 3. ПРИКРЕПЛЯЕМ 4 БЕТОННЫХ БОРТА ===
+      const wt = 0.1; // Толщина борта 10 см
+      const wh = 0.05; // Высота борта над столом 5 см
+      // Смещаем координату Y бортов вверх, чтобы они стояли на столе
+      const wy = floorHalfHeight + wh; 
+
+      // Верхний борт (-Z)
+      const wallTop = RAPIER.ColliderDesc.cuboid(widthX / 2 + wt, wh, wt / 2)
+        .setTranslation(cx, wy, minZ - wt / 2)
+        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
+      world.createCollider(wallTop, floorBody);
+
+      // Нижний борт (+Z)
+      const wallBottom = RAPIER.ColliderDesc.cuboid(widthX / 2 + wt, wh, wt / 2)
+        .setTranslation(cx, wy, maxZ + wt / 2)
+        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
+      world.createCollider(wallBottom, floorBody);
+
+      // Левый борт (-X)
+      const wallLeft = RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt)
+        .setTranslation(minX - wt / 2, wy, cz)
+        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
+      world.createCollider(wallLeft, floorBody);
+
+      // Правый борт (+X)
+      const wallRight = RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt)
+        .setTranslation(maxX + wt / 2, wy, cz)
+        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
+      world.createCollider(wallRight, floorBody);
+
+      // === 4. СОЗДАЕМ НЕВИДИМУЮ КРЫШКУ (ОТДЕЛЬНОЕ ТЕЛО) ===
+      const roofHeight = 0.04; 
       const roofBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, roofHeight, 0);
       const roofBody = world.createRigidBody(roofBodyDesc);
       const roofColliderDesc = RAPIER.ColliderDesc.cuboid(2.0, 0.01, 2.0)
         .setFriction(0.0)
-        .setRestitution(0.2); // Мягко гасим удар, если фишка подпрыгнула
+        .setRestitution(0.2); 
       world.createCollider(roofColliderDesc, roofBody);
     }
+    
 
     if (obj.name === 'mesh_carrom_man') {
       coinTemplate = obj;
@@ -648,7 +675,7 @@ function setupPhysics(model) {
 
       const spawnPos = perfectPositions[i];
       // Origin в центре геометрии, значит центр фишки должен быть на halfHeight выше стола
-      spawnPos.y = boardTopY + officialCoinHalfHeight;
+      spawnPos.y = boardTopY + officialCoinHalfHeight + 0.0005;
       
       const physRadius = (officialCoinDia / 2) * 1; // Зазор для стабильности
       const body = createSimplePhysicsBody(physRadius, officialCoinHalfHeight, spawnPos);
@@ -698,28 +725,6 @@ function setupPhysics(model) {
 }
 
 // --- ФИЗИЧЕСКИЕ ХЕЛПЕРЫ ---
-
-function createTrimeshBody(mesh) {
-  const geometry = mesh.geometry.clone();
-  mesh.updateMatrixWorld(true);
-  geometry.applyMatrix4(mesh.matrixWorld);
-
-  const vertices = new Float32Array(geometry.attributes.position.array);
-  let indices = null;
-  if (geometry.index) {
-    indices = new Uint32Array(geometry.index.array);
-  }
-
-  const bodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0);
-  const body = world.createRigidBody(bodyDesc);
-
-  const colliderDesc = RAPIER.ColliderDesc.trimesh(vertices, indices)
-    .setFriction(0.1)
-    .setRestitution(PHYSICS.boardRestitution); // отскок фишек от бортов
-
-  world.createCollider(colliderDesc, body);
-  return body;
-}
 
 function createSimplePhysicsBody(radius, halfHeight, spawnPosition) {
   const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
