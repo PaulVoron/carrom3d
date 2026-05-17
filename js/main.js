@@ -16,21 +16,37 @@ const PHYSICS = {
   friction: 0.05,          // Трение доски (пудра)
   restitution: 0.7,       // Упругость фишек (отскок друг от друга)
   boardRestitution: 0.6,  // Упругость бортов стола
-  
+
   // Массы в килограммах (СИ)
   massStriker: 0.015,     // 15 грамм
   massCoin: 0.0055,       // 5.5 грамм
-  
+
   // Настройки Рогатки
   maxPullDistance: 0.15,  // Максимальная длина оттяжки (15 см)
   strikerForce: 0.7,      // Множитель силы импульса
   solverIterations: 15,   // Точность физики (спасает от проваливаний сквозь текстуры)
   subStepping: 4,         // УБИЙЦА БАГОВ: Считаем коллизии 240 раз в секунду!
-  
+
   // Настройки Луз
   pocketRadius: 0.02225,  // Радиус лузы (44.5 мм / 2)
   pocketFallDepth: -0.1   // На какой глубине удалять фишку со сцены
 };
+
+// === МАСКИ СТОЛКНОВЕНИЙ ===
+const COL_GROUP_COIN = 0x0001;
+const COL_GROUP_FLOOR = 0x0002;
+const COL_GROUP_WALLS = 0x0004;
+
+// Нормальное состояние: фишка сталкивается с другими фишками, полом и стенами
+const MASK_COIN_NORMAL = (COL_GROUP_COIN << 16) | (COL_GROUP_COIN | COL_GROUP_FLOOR | COL_GROUP_WALLS);
+
+// Состояние падения: фишка сталкивается с фишками и стенами, но НЕ С ПОЛОМ
+const MASK_COIN_FALLING = (COL_GROUP_COIN << 16) | (COL_GROUP_COIN | COL_GROUP_WALLS);
+
+const MASK_FLOOR = (COL_GROUP_FLOOR << 16) | COL_GROUP_COIN;
+const MASK_WALLS = (COL_GROUP_WALLS << 16) | COL_GROUP_COIN;
+
+let pocketCenters = []; // Сюда запишем центры луз
 
 // === STRIKER PLACEMENT CONSTANTS ===
 const PLAYER_1_LINE_Z = 0.25;   // Фиксированная Z-координата базовой линии Игрока 1 (ближняя к камере, Z+)
@@ -184,7 +200,7 @@ function onPointerDown(event) {
       isAiming = true;
       if (controls) controls.enabled = false;
       dragPlane.set(new THREE.Vector3(0, 1, 0), -strikerSpawnY);
-      
+
       // Запоминаем стартовую точку
       if (raycaster.ray.intersectPlane(dragPlane, aimStartPoint)) {
         // Успешно нашли точку на плоскости
@@ -224,23 +240,23 @@ function onPointerMove(event) {
     if (raycaster.ray.intersectPlane(dragPlane, intersection)) {
       // Вычисляем вектор от битка до курсора (игрок тянет назад)
       const pullVector = new THREE.Vector3().subVectors(intersection, aimStartPoint);
-      
+
       // Ограничиваем максимальную длину вектора
       if (pullVector.length() > PHYSICS.maxPullDistance) {
         pullVector.setLength(PHYSICS.maxPullDistance);
       }
-      
+
       // Инвертируем: вектор удара направлен в противоположную сторону
       currentImpulse.copy(pullVector).multiplyScalar(-1);
-      
+
       if (currentImpulse.lengthSq() > 0.00001) {
         aimLine.visible = true;
         aimLine.position.copy(strikerEntry.mesh.position);
         aimLine.position.y += 0.001; // Приподнимаем, чтобы не было Z-fighting
-        
+
         aimLine.setDirection(currentImpulse.clone().normalize());
         // Длина линии пропорциональна силе натяжения
-        aimLine.setLength(currentImpulse.length() * 2); 
+        aimLine.setLength(currentImpulse.length() * 2);
       } else {
         aimLine.visible = false;
       }
@@ -260,7 +276,7 @@ function onPointerUp() {
       isAiming = false;
       if (controls) controls.enabled = true;
       aimLine.visible = false;
-      
+
       if (currentImpulse.lengthSq() > 0.00001) {
         // БУДИМ ВСЕ ФИШКИ НА СТОЛЕ ПЕРЕД УДАРОМ
         physicsBodies.forEach(b => { if (b.body && b.body.isEnabled()) b.body.wakeUp(); });
@@ -268,7 +284,7 @@ function onPointerUp() {
         // Применяем импульс
         const impulse = currentImpulse.clone().multiplyScalar(PHYSICS.strikerForce);
         strikerEntry.body.applyImpulse({ x: impulse.x, y: 0, z: impulse.z }, true);
-        
+
         // Переходим в состояние движения
         gameState = 'MOVING';
         checkSleepFrameCount = 0;
@@ -358,7 +374,7 @@ function setupAimLine() {
 // --- INIT ---
 async function init() {
   await RAPIER.init();
-  
+
   const gravity = { x: 0.0, y: -9.81, z: 0.0 };
   world = new RAPIER.World(gravity);
   world.numSolverIterations = PHYSICS.solverIterations;
@@ -423,17 +439,17 @@ function updatePhysics() {
         if (entry.body.isEnabled() && entry.body.bodyType() === RAPIER.RigidBodyType.Dynamic) {
           const linvel = entry.body.linvel();
           const angvel = entry.body.angvel();
-          
+
           const speedSq = linvel.x * linvel.x + linvel.y * linvel.y + linvel.z * linvel.z;
           const rotSpeedSq = angvel.x * angvel.x + angvel.y * angvel.y + angvel.z * angvel.z;
-          
+
           if (speedSq > 0.0001 || rotSpeedSq > 0.0001) {
             allSleeping = false;
             break;
           }
         }
       }
-      
+
       if (allSleeping) {
         endTurn();
       }
@@ -443,7 +459,7 @@ function updatePhysics() {
   const currentTime = performance.now();
 
   physicsBodies.forEach((entry) => {
-    const { mesh, body } = entry; 
+    const { mesh, body } = entry;
 
     // В PLACEMENT биток управляется напрямую из drag-хендлера, пропускаем sync
     if (gameState === 'PLACEMENT' && entry === strikerEntry) return;
@@ -462,15 +478,45 @@ function updatePhysics() {
 function checkPocketIntersections() {
   physicsBodies.forEach((entry) => {
     const { mesh, body } = entry;
-    
     if (!body.isEnabled()) return;
 
     const pos = body.translation();
+    const vecPos = new THREE.Vector3(pos.x, 0, pos.z);
     
-    // Если фишка провалилась глубоко под стол — удаляем её
+    // Проверяем, находится ли центр фишки над лузой
+    let isOverPocket = false;
+    for (let center of pocketCenters) {
+      if (vecPos.distanceTo(center) < PHYSICS.pocketRadius * 0.8) {
+        isOverPocket = true;
+        break;
+      }
+    }
+
+    // ИСПРАВЛЕНИЕ ЗДЕСЬ: напрямую берем коллайдер
+    const collider = body.collider(0); 
+    
+    if (collider) {
+      if (isOverPocket) {
+        // Если фишка только что оказалась над лузой
+        if (!mesh.userData.isFalling) {
+          collider.setCollisionGroups(MASK_COIN_FALLING); // Пол исчезает
+          body.wakeUp(); // БУДИМ ФИШКУ, чтобы гравитация потянула ее вниз!
+          mesh.userData.isFalling = true;
+        }
+      } else {
+        // Если фишка балансировала на краю, но отскочила обратно на стол
+        if (mesh.userData.isFalling) {
+          collider.setCollisionGroups(MASK_COIN_NORMAL); // Пол снова твердый
+          mesh.userData.isFalling = false;
+        }
+      }
+    }
+
+    // Окончательное удаление, когда фишка пролетела 10 см вниз
     if (pos.y < PHYSICS.pocketFallDepth) {
       console.log(`🕳️ Успешное попадание: ${mesh.userData.type}`);
       processPocketResult(entry);
+      mesh.userData.isFalling = false; // Сбрасываем флаг
     }
   });
 }
@@ -479,7 +525,7 @@ function processPocketResult(entry) {
   const { mesh, body } = entry;
   body.setLinvel({ x: 0, y: 0, z: 0 }, true);
   body.sleep();
-  body.setEnabled(false); 
+  body.setEnabled(false);
   mesh.visible = false;
 
   if (window.onPocketEnter) {
@@ -489,22 +535,22 @@ function processPocketResult(entry) {
 
 function endTurn() {
   console.log('🎱 State → PLACEMENT: Ход завершен, возвращаем биток.');
-  
+
   if (strikerEntry && strikerEntry.body.isEnabled()) {
     strikerEntry.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
-    
+
     // Сбрасываем скорости
     strikerEntry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     strikerEntry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    
+
     // СБРОС ВРАЩЕНИЯ: возвращаем идеально ровное положение
     strikerEntry.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-    
+
     const resetPos = { x: 0, y: strikerSpawnY, z: PLAYER_1_LINE_Z };
     strikerEntry.body.setTranslation(resetPos, true);
     strikerEntry.body.setNextKinematicTranslation(resetPos, true);
     strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
-    
+
     validatePlacement(0);
   }
 
@@ -522,9 +568,10 @@ function setupPhysics(model) {
   model.updateMatrixWorld(true);
 
   model.traverse((obj) => {
-    // Поверхность стола (Сборный пол с реальными дырками + Бетонные борта)
+    // Поверхность стола (Идеальный единый кубоид + Бетонные борта с масками)
     if (obj.name === 'mesh_board_surface') {
       const bbox = new THREE.Box3().setFromObject(obj);
+      boardTopY = 0.001;
 
       const minX = bbox.min.x;
       const maxX = bbox.max.x;
@@ -536,98 +583,94 @@ function setupPhysics(model) {
       const cx = (minX + maxX) / 2;
       const cz = (minZ + maxZ) / 2;
 
-      const hs = PHYSICS.pocketRadius * 2.2; 
-      const floorHalfHeight = 0.05; 
-      const floorCenterY = boardTopY - floorHalfHeight; 
-      
-      // === 1. СОЗДАЕМ БАЗОВОЕ ТЕЛО ПОЛА ===
+      // Сохраняем центры луз для математики
+      const pr = PHYSICS.pocketRadius;
+      pocketCenters = [
+        new THREE.Vector3(maxX - pr, 0, maxZ - pr),
+        new THREE.Vector3(maxX - pr, 0, minZ + pr),
+        new THREE.Vector3(minX + pr, 0, maxZ - pr),
+        new THREE.Vector3(minX + pr, 0, minZ + pr)
+      ];
+
+      const floorHalfHeight = 0.05;
+      const floorCenterY = boardTopY - floorHalfHeight;
+
       const floorBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, floorCenterY, 0);
       const floorBody = world.createRigidBody(floorBodyDesc);
-      
-      // === 2. ПРИКРЕПЛЯЕМ 3 ПЛИТЫ С ДЫРКАМИ ===
-      const middleCollider = RAPIER.ColliderDesc.cuboid(widthX / 2, floorHalfHeight, (widthZ - hs * 2) / 2)
+
+      // === 1. ЕДИНЫЙ ПОЛ БЕЗ ШВОВ ===
+      const mainCollider = RAPIER.ColliderDesc.cuboid(widthX / 2, floorHalfHeight, widthZ / 2)
         .setTranslation(cx, 0, cz)
         .setFriction(PHYSICS.friction)
-        .setRestitution(0.1);
-      world.createCollider(middleCollider, floorBody);
+        .setRestitution(0.1)
+        .setCollisionGroups(MASK_FLOOR); // <--- Маска пола
+      world.createCollider(mainCollider, floorBody);
 
-      const topCollider = RAPIER.ColliderDesc.cuboid((widthX - hs * 2) / 2, floorHalfHeight, hs / 2)
-        .setTranslation(cx, 0, minZ + hs / 2)
-        .setFriction(PHYSICS.friction)
-        .setRestitution(0.1);
-      world.createCollider(topCollider, floorBody);
-
-      const bottomCollider = RAPIER.ColliderDesc.cuboid((widthX - hs * 2) / 2, floorHalfHeight, hs / 2)
-        .setTranslation(cx, 0, maxZ - hs / 2)
-        .setFriction(PHYSICS.friction)
-        .setRestitution(0.1);
-      world.createCollider(bottomCollider, floorBody);
-
-      // === 3. ПРИКРЕПЛЯЕМ 4 БЕТОННЫХ БОРТА ===
+      // === 2. БЕТОННЫЕ БОРТА ===
       const wt = 0.1; // Толщина борта 10 см
-      const wh = 0.10; // Высота борта над столом 5 см + 5 см углубление = 10 см
-      const wy = floorHalfHeight - 0.05; 
+      const wh = 0.10; // Высота борта 10 см (5 см над столом + 5 см углубление)
+      const wy = floorHalfHeight - 0.05;
 
       const wallTop = RAPIER.ColliderDesc.cuboid(widthX / 2 + wt, wh, wt / 2)
         .setTranslation(cx, wy, minZ - wt / 2)
-        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
+        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution)
+        .setCollisionGroups(MASK_WALLS);
       world.createCollider(wallTop, floorBody);
 
       const wallBottom = RAPIER.ColliderDesc.cuboid(widthX / 2 + wt, wh, wt / 2)
         .setTranslation(cx, wy, maxZ + wt / 2)
-        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
+        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution)
+        .setCollisionGroups(MASK_WALLS);
       world.createCollider(wallBottom, floorBody);
 
       const wallLeft = RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt)
         .setTranslation(minX - wt / 2, wy, cz)
-        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
+        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution)
+        .setCollisionGroups(MASK_WALLS);
       world.createCollider(wallLeft, floorBody);
 
       const wallRight = RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt)
         .setTranslation(maxX + wt / 2, wy, cz)
-        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
+        .setFriction(0.1).setRestitution(PHYSICS.boardRestitution)
+        .setCollisionGroups(MASK_WALLS);
       world.createCollider(wallRight, floorBody);
 
-      // === 4. СОЗДАЕМ НЕВИДИМУЮ КРЫШКУ ===
-      const roofHeight = 0.04; 
+      // === 3. НЕВИДИМАЯ КРЫШКА ===
+      const roofHeight = 0.04;
       const roofBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, roofHeight, 0);
       const roofBody = world.createRigidBody(roofBodyDesc);
       const roofColliderDesc = RAPIER.ColliderDesc.cuboid(2.0, 0.01, 2.0)
         .setFriction(0.0)
-        .setRestitution(0.2); 
+        .setRestitution(0.2)
+        .setCollisionGroups(MASK_WALLS);
       world.createCollider(roofColliderDesc, roofBody);
 
-      if (DEBUG_MODE) {
+      if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) {
         // ==========================================
         // 🛠️ ВИЗУАЛЬНЫЙ ДЕБАГГИНГ (ПОЛ И БОРТА) 🛠️
         // ==========================================
         function drawDebugBox(w, h, d, x, y, z, color) {
           const geo = new THREE.BoxGeometry(w, h, d);
-          const mat = new THREE.MeshBasicMaterial({ 
-            color: color, 
-            wireframe: true, // Рисуем сеткой, чтобы видеть сквозь
-            transparent: true, 
-            opacity: 0.3 
+          const mat = new THREE.MeshBasicMaterial({
+            color: color,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
           });
           const mesh = new THREE.Mesh(geo, mat);
           mesh.position.set(x, y, z);
           scene.add(mesh);
         }
-  
-        // Важно: в Rapier размеры (cuboid) задаются как "половина длины", 
-        // а в Three.js (BoxGeometry) как "полная длина". Поэтому умножаем размеры на 2!
-  
-        // Синие плиты пола
-        drawDebugBox(widthX, floorHalfHeight * 2, widthZ - hs * 2, cx, floorCenterY, cz, 0x0088ff); 
-        drawDebugBox(widthX - hs * 2, floorHalfHeight * 2, hs, cx, floorCenterY, minZ + hs / 2, 0x0088ff); 
-        drawDebugBox(widthX - hs * 2, floorHalfHeight * 2, hs, cx, floorCenterY, maxZ - hs / 2, 0x0088ff); 
-  
+
+        // Один сплошной синий прямоугольник для пола (больше никаких 3-х плит)
+        drawDebugBox(widthX, floorHalfHeight * 2, widthZ, cx, floorCenterY, cz, 0x0088ff);
+
         // Красные бетонные борта
-        drawDebugBox(widthX + wt * 2, wh * 2, wt, cx, wy, minZ - wt / 2, 0xff0000); 
-        drawDebugBox(widthX + wt * 2, wh * 2, wt, cx, wy, maxZ + wt / 2, 0xff0000); 
-        drawDebugBox(wt, wh * 2, widthZ + wt * 2, minX - wt / 2, wy, cz, 0xff0000); 
-        drawDebugBox(wt, wh * 2, widthZ + wt * 2, maxX + wt / 2, wy, cz, 0xff0000); 
-  
+        drawDebugBox(widthX + wt * 2, wh * 2, wt, cx, wy, minZ - wt / 2, 0xff0000);
+        drawDebugBox(widthX + wt * 2, wh * 2, wt, cx, wy, maxZ + wt / 2, 0xff0000);
+        drawDebugBox(wt, wh * 2, widthZ + wt * 2, minX - wt / 2, wy, cz, 0xff0000);
+        drawDebugBox(wt, wh * 2, widthZ + wt * 2, maxX + wt / 2, wy, cz, 0xff0000);
+
         // Зеленая крышка
         drawDebugBox(4.0, 0.02, 4.0, 0, roofHeight, 0, 0x00ff00);
         // ==========================================
@@ -649,20 +692,20 @@ function setupPhysics(model) {
   });
 
   // === ЖЕСТКАЯ НОРМАЛИЗАЦИЯ ФИШЕК ===
-  const officialCoinDia = 0.0318; 
+  const officialCoinDia = 0.0318;
   const officialCoinHalfHeight = 0.008 / 2; // Толщина 8 мм
 
   if (coinTemplate) {
     // Вытаскиваем фишку в корень сцены (отвязываем от групп Блендера)
-    scene.add(coinTemplate); 
+    scene.add(coinTemplate);
     coinTemplate.scale.set(1, 1, 1);
     coinTemplate.updateMatrixWorld(true);
-    
+
     // Измеряем и масштабируем до идеальных размеров
     const bbox = new THREE.Box3().setFromObject(coinTemplate);
     const size = new THREE.Vector3();
     bbox.getSize(size);
-    
+
     coinTemplate.scale.set(
       officialCoinDia / size.x,
       (officialCoinHalfHeight * 2) / size.y,
@@ -672,7 +715,7 @@ function setupPhysics(model) {
 
     const boardCenter = positions[0] ? positions[0].clone() : new THREE.Vector3(0, 0, 0);
     // Точка отсчета для сетки — истинная поверхность стола
-    boardCenter.y = boardTopY; 
+    boardCenter.y = boardTopY;
 
     // 45 градусов в радианах (Math.PI / 4)
     const rotation45 = -Math.PI / 4;
@@ -684,7 +727,7 @@ function setupPhysics(model) {
     for (let i = 0; i < 19; i++) {
       const coinClone = coinTemplate.clone();
       coinClone.visible = true;
-      scene.add(coinClone); 
+      scene.add(coinClone);
 
       coinClone.userData.id = i;
       if (i === 0) {
@@ -699,10 +742,10 @@ function setupPhysics(model) {
       const spawnPos = perfectPositions[i];
       // Origin в центре геометрии, значит центр фишки должен быть на halfHeight выше стола
       spawnPos.y = boardTopY + officialCoinHalfHeight + 0.0005;
-      
+
       const physRadius = (officialCoinDia / 2) * 1; // Зазор для стабильности
       const body = createSimplePhysicsBody(physRadius, officialCoinHalfHeight, spawnPos);
-      
+
       physicsBodies.push({ mesh: coinClone, body });
     }
   }
@@ -719,7 +762,7 @@ function setupPhysics(model) {
     const bbox = new THREE.Box3().setFromObject(strikerMesh);
     const size = new THREE.Vector3();
     bbox.getSize(size);
-    
+
     strikerMesh.scale.set(
       officialStrikerDia / size.x,
       (officialStrikerHalfHeight * 2) / size.y,
@@ -738,7 +781,7 @@ function setupPhysics(model) {
 
     // В режиме PLACEMENT — kinematicPositionBased (не отталкивает фишки)
     const body = createKinematicPhysicsBody(strikerPhysRadius, officialStrikerHalfHeight, spawnPos);
-    
+
     // Синхронизируем визуал с физикой сразу при спавне
     strikerMesh.position.copy(spawnPos);
 
@@ -755,14 +798,16 @@ function createSimplePhysicsBody(radius, halfHeight, spawnPosition) {
     .setCcdEnabled(true)
     .setLinearDamping(PHYSICS.damping)
     .setAngularDamping(PHYSICS.damping)
-    .enabledRotations(false, true, false); // Блокируем наклоны!
+    .enabledRotations(false, true, false);
 
   const body = world.createRigidBody(bodyDesc);
 
+  // Возвращаем обычный идеальный цилиндр! Никаких фасок.
   const colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, radius)
     .setFriction(PHYSICS.friction)
     .setRestitution(PHYSICS.restitution)
-    .setMass(PHYSICS.massCoin); // Берем 5.5 грамм из конфига
+    .setMass(PHYSICS.massCoin)
+    .setCollisionGroups(MASK_COIN_NORMAL); // <--- Применяем маску
 
   world.createCollider(colliderDesc, body);
   return body;
@@ -777,14 +822,15 @@ function createKinematicPhysicsBody(radius, halfHeight, spawnPosition) {
   const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
     .setTranslation(spawnPosition.x, spawnPosition.y, spawnPosition.z)
     .setCcdEnabled(true)
-    .enabledRotations(false, true, false); // Блокируем наклоны!
+    .enabledRotations(false, true, false);
 
   const body = world.createRigidBody(bodyDesc);
 
   const colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, radius)
     .setFriction(PHYSICS.friction)
     .setRestitution(PHYSICS.restitution)
-    .setMass(PHYSICS.massStriker); // Берем 15 грамм из конфига
+    .setMass(PHYSICS.massStriker)
+    .setCollisionGroups(MASK_COIN_NORMAL); // <--- Применяем маску
 
   world.createCollider(colliderDesc, body);
   return body;
@@ -818,8 +864,8 @@ function getCarromPositions(centerPos, diameter, rotationAngle = 0) {
   for (let i = 0; i < 6; i++) {
     const angle = (i * Math.PI) / 3 + rotationAngle;
     positions.push(new THREE.Vector3(
-      centerPos.x + Math.cos(angle) * d, 
-      centerPos.y, 
+      centerPos.x + Math.cos(angle) * d,
+      centerPos.y,
       centerPos.z + Math.sin(angle) * d
     ));
   }
@@ -829,17 +875,17 @@ function getCarromPositions(centerPos, diameter, rotationAngle = 0) {
   const dSq3 = d * Math.sqrt(3);
   for (let i = 0; i < 12; i++) {
     const angle = (i * Math.PI) / 6 + rotationAngle;
-    
+
     // Если четный шаг — это угол гексагона (дальше от центра). Нечетный — центр грани (ближе).
     const dist = (i % 2 === 0) ? (2 * d) : dSq3;
 
     positions.push(new THREE.Vector3(
-      centerPos.x + Math.cos(angle) * dist, 
-      centerPos.y, 
+      centerPos.x + Math.cos(angle) * dist,
+      centerPos.y,
       centerPos.z + Math.sin(angle) * dist
     ));
   }
-  
+
   return positions;
 }
 
