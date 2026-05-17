@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { create3DScene, loadModel, scene, camera, renderer, controls } from './3d-scene.js';
 
+const DEBUG_MODE = true;
+
 let world;
 let physicsBodies = []; // Массив объектов: { mesh, body }
 
@@ -357,22 +359,16 @@ function setupAimLine() {
 async function init() {
   await RAPIER.init();
   
-  // Гравитация
   const gravity = { x: 0.0, y: -9.81, z: 0.0 };
   world = new RAPIER.World(gravity);
-
-  // Увеличиваем количество итераций решателя. Это убьет баг с прохождением фишек друг сквозь друга!
   world.numSolverIterations = PHYSICS.solverIterations;
-
-  // Включаем Sub-stepping для защиты от "туннелирования" сквозь фишки
   world.integrationParameters.maxCcdSubsteps = PHYSICS.subStepping;
 
-  // Инициализируем визуальную сцену
   await create3DScene(updatePhysics);
-
-  // Загружаем нашу идеальную модель
   const model = await loadModel('/models/carrom-draco.glb');
   if (!model) return;
+
+  model.position.y = -0.001;
 
   setupPhysics(model);
   setupAimLine();
@@ -521,16 +517,14 @@ function setupPhysics(model) {
   const positions = new Array(19).fill(null);
   let strikerMesh = null;
   let coinTemplate = null;
-  let boardTopY = 0; // Истинная математическая высота поверхности стола
+  let boardTopY = 0.00; // Истинная математическая высота поверхности стола
 
   model.updateMatrixWorld(true);
 
   model.traverse((obj) => {
-    // Поверхность стола (Сборный пол с реальными дырками в углах)
     // Поверхность стола (Сборный пол с реальными дырками + Бетонные борта)
     if (obj.name === 'mesh_board_surface') {
       const bbox = new THREE.Box3().setFromObject(obj);
-      boardTopY = 0.001; 
 
       const minX = bbox.min.x;
       const maxX = bbox.max.x;
@@ -543,7 +537,6 @@ function setupPhysics(model) {
       const cz = (minZ + maxZ) / 2;
 
       const hs = PHYSICS.pocketRadius * 2.2; 
-
       const floorHalfHeight = 0.05; 
       const floorCenterY = boardTopY - floorHalfHeight; 
       
@@ -572,35 +565,30 @@ function setupPhysics(model) {
 
       // === 3. ПРИКРЕПЛЯЕМ 4 БЕТОННЫХ БОРТА ===
       const wt = 0.1; // Толщина борта 10 см
-      const wh = 0.05; // Высота борта над столом 5 см
-      // Смещаем координату Y бортов вверх, чтобы они стояли на столе
-      const wy = floorHalfHeight + wh; 
+      const wh = 0.10; // Высота борта над столом 5 см + 5 см углубление = 10 см
+      const wy = floorHalfHeight - 0.05; 
 
-      // Верхний борт (-Z)
       const wallTop = RAPIER.ColliderDesc.cuboid(widthX / 2 + wt, wh, wt / 2)
         .setTranslation(cx, wy, minZ - wt / 2)
         .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
       world.createCollider(wallTop, floorBody);
 
-      // Нижний борт (+Z)
       const wallBottom = RAPIER.ColliderDesc.cuboid(widthX / 2 + wt, wh, wt / 2)
         .setTranslation(cx, wy, maxZ + wt / 2)
         .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
       world.createCollider(wallBottom, floorBody);
 
-      // Левый борт (-X)
       const wallLeft = RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt)
         .setTranslation(minX - wt / 2, wy, cz)
         .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
       world.createCollider(wallLeft, floorBody);
 
-      // Правый борт (+X)
       const wallRight = RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt)
         .setTranslation(maxX + wt / 2, wy, cz)
         .setFriction(0.1).setRestitution(PHYSICS.boardRestitution);
       world.createCollider(wallRight, floorBody);
 
-      // === 4. СОЗДАЕМ НЕВИДИМУЮ КРЫШКУ (ОТДЕЛЬНОЕ ТЕЛО) ===
+      // === 4. СОЗДАЕМ НЕВИДИМУЮ КРЫШКУ ===
       const roofHeight = 0.04; 
       const roofBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, roofHeight, 0);
       const roofBody = world.createRigidBody(roofBodyDesc);
@@ -608,8 +596,43 @@ function setupPhysics(model) {
         .setFriction(0.0)
         .setRestitution(0.2); 
       world.createCollider(roofColliderDesc, roofBody);
+
+      if (DEBUG_MODE) {
+        // ==========================================
+        // 🛠️ ВИЗУАЛЬНЫЙ ДЕБАГГИНГ (ПОЛ И БОРТА) 🛠️
+        // ==========================================
+        function drawDebugBox(w, h, d, x, y, z, color) {
+          const geo = new THREE.BoxGeometry(w, h, d);
+          const mat = new THREE.MeshBasicMaterial({ 
+            color: color, 
+            wireframe: true, // Рисуем сеткой, чтобы видеть сквозь
+            transparent: true, 
+            opacity: 0.3 
+          });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(x, y, z);
+          scene.add(mesh);
+        }
+  
+        // Важно: в Rapier размеры (cuboid) задаются как "половина длины", 
+        // а в Three.js (BoxGeometry) как "полная длина". Поэтому умножаем размеры на 2!
+  
+        // Синие плиты пола
+        drawDebugBox(widthX, floorHalfHeight * 2, widthZ - hs * 2, cx, floorCenterY, cz, 0x0088ff); 
+        drawDebugBox(widthX - hs * 2, floorHalfHeight * 2, hs, cx, floorCenterY, minZ + hs / 2, 0x0088ff); 
+        drawDebugBox(widthX - hs * 2, floorHalfHeight * 2, hs, cx, floorCenterY, maxZ - hs / 2, 0x0088ff); 
+  
+        // Красные бетонные борта
+        drawDebugBox(widthX + wt * 2, wh * 2, wt, cx, wy, minZ - wt / 2, 0xff0000); 
+        drawDebugBox(widthX + wt * 2, wh * 2, wt, cx, wy, maxZ + wt / 2, 0xff0000); 
+        drawDebugBox(wt, wh * 2, widthZ + wt * 2, minX - wt / 2, wy, cz, 0xff0000); 
+        drawDebugBox(wt, wh * 2, widthZ + wt * 2, maxX + wt / 2, wy, cz, 0xff0000); 
+  
+        // Зеленая крышка
+        drawDebugBox(4.0, 0.02, 4.0, 0, roofHeight, 0, 0x00ff00);
+        // ==========================================
+      }
     }
-    
 
     if (obj.name === 'mesh_carrom_man') {
       coinTemplate = obj;
