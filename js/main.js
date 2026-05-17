@@ -12,6 +12,23 @@ const fallingQueue = new Map();
 // === STATE MACHINE ===
 let gameState = 'PLACEMENT'; // Состояния: PLACEMENT, AIMING, MOVING
 
+// === НАСТРОЙКИ ФИЗИКИ (Единый пульт управления) ===
+const PHYSICS = {
+  damping: 0.3,           // Скольжение (меньше = дольше катятся)
+  friction: 0.1,          // Трение доски (пудра)
+  restitution: 0.7,       // Упругость фишек (отскок друг от друга)
+  boardRestitution: 0.6,  // Упругость бортов стола
+  
+  // Массы в килограммах (СИ)
+  massStriker: 0.015,     // 15 грамм
+  massCoin: 0.0055,       // 5.5 грамм
+  
+  // Настройки Рогатки
+  maxPullDistance: 0.15,  // Максимальная длина оттяжки (15 см)
+  strikerForce: 0.5,      // Множитель силы импульса
+  solverIterations: 10    // Точность физики (спасает от проваливаний сквозь текстуры)
+};
+
 // === STRIKER PLACEMENT CONSTANTS ===
 const PLAYER_1_LINE_Z = 0.25;   // Фиксированная Z-координата базовой линии Игрока 1 (ближняя к камере, Z+)
 const PLAYER_1_MIN_X = -0.20;   // Левая граница перемещения битка
@@ -34,8 +51,6 @@ let isAiming = false;
 let aimLine = null;
 let aimStartPoint = new THREE.Vector3(); // Точка клика
 let currentImpulse = new THREE.Vector3(); // Вектор удара
-const MAX_PULL_DISTANCE = 0.1;
-const FORCE_MULTIPLIER = 0.002;
 
 // === MOVING LOGIC ===
 let checkSleepFrameCount = 0;
@@ -209,8 +224,8 @@ function onPointerMove(event) {
       const pullVector = new THREE.Vector3().subVectors(intersection, aimStartPoint);
       
       // Ограничиваем максимальную длину вектора
-      if (pullVector.length() > MAX_PULL_DISTANCE) {
-        pullVector.setLength(MAX_PULL_DISTANCE);
+      if (pullVector.length() > PHYSICS.maxPullDistance) {
+        pullVector.setLength(PHYSICS.maxPullDistance);
       }
       
       // Инвертируем: вектор удара направлен в противоположную сторону
@@ -246,7 +261,7 @@ function onPointerUp() {
       
       if (currentImpulse.lengthSq() > 0.00001) {
         // Применяем импульс
-        const impulse = currentImpulse.clone().multiplyScalar(FORCE_MULTIPLIER);
+        const impulse = currentImpulse.clone().multiplyScalar(PHYSICS.strikerForce);
         strikerEntry.body.applyImpulse({ x: impulse.x, y: 0, z: impulse.z }, true);
         
         // Переходим в состояние движения
@@ -343,6 +358,9 @@ async function init() {
   // Гравитация
   const gravity = { x: 0.0, y: -9.81, z: 0.0 };
   world = new RAPIER.World(gravity);
+
+  // Увеличиваем количество итераций решателя. Это убьет баг с прохождением фишек друг сквозь друга!
+  world.numSolverIterations = PHYSICS.solverIterations;
 
   // Инициализируем визуальную сцену
   await create3DScene(updatePhysics);
@@ -475,11 +493,13 @@ function setupPockets() {
   ];
 
   pocketPositions.forEach((pos) => {
+    // Поднимаем сенсор точно на уровень стола (Y = 0)
     const bodyDesc = RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(pos.x, -0.02, pos.z);
+      .setTranslation(pos.x, 0, pos.z);
     const body = world.createRigidBody(bodyDesc);
     
-    const colliderDesc = RAPIER.ColliderDesc.cylinder(0.01, pocketRadius).setSensor(true);
+    // Делаем цилиндр лузы высоким (10 см), чтобы фишка гарантированно в него вошла
+    const colliderDesc = RAPIER.ColliderDesc.cylinder(0.05, pocketRadius).setSensor(true);
     const collider = world.createCollider(colliderDesc, body);
     pocketColliders.push(collider);
   });
@@ -501,20 +521,20 @@ function endTurn() {
   console.log('🎱 State → PLACEMENT: Ход завершен, возвращаем биток.');
   
   if (strikerEntry && strikerEntry.body.isEnabled()) {
-    // Переводим биток обратно в кинематический режим
     strikerEntry.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
     
-    // Сбрасываем скорости в ноль
+    // Сбрасываем скорости
     strikerEntry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     strikerEntry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     
-    // Возвращаем биток на стартовую позицию Игрока 1
+    // СБРОС ВРАЩЕНИЯ: возвращаем идеально ровное положение
+    strikerEntry.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+    
     const resetPos = { x: 0, y: strikerSpawnY, z: PLAYER_1_LINE_Z };
     strikerEntry.body.setTranslation(resetPos, true);
     strikerEntry.body.setNextKinematicTranslation(resetPos, true);
     strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
     
-    // Проверяем валидность новой позиции (чтобы UI кнопка правильно реагировала)
     validatePlacement(0);
   }
 
@@ -684,8 +704,8 @@ function createTrimeshBody(mesh) {
   const body = world.createRigidBody(bodyDesc);
 
   const colliderDesc = RAPIER.ColliderDesc.trimesh(vertices, indices)
-    .setFriction(0.1)     // Борта скользкие
-    .setRestitution(0.5); // Хороший отскок фишек от бортов
+    .setFriction(0.1)
+    .setRestitution(PHYSICS.boardRestitution); // отскок фишек от бортов
 
   world.createCollider(colliderDesc, body);
   return body;
@@ -694,15 +714,17 @@ function createTrimeshBody(mesh) {
 function createSimplePhysicsBody(radius, halfHeight, spawnPosition) {
   const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(spawnPosition.x, spawnPosition.y, spawnPosition.z)
-    .setCcdEnabled(true)     // Защита от проваливания сквозь стол
-    .setLinearDamping(4.0)   // Мгновенная остановка (имитация трения)
-    .setAngularDamping(4.0); 
+    .setCcdEnabled(true)
+    .setLinearDamping(PHYSICS.damping)
+    .setAngularDamping(PHYSICS.damping)
+    .enabledRotations(false, true, false); // Блокируем наклоны!
 
   const body = world.createRigidBody(bodyDesc);
 
   const colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, radius)
-    .setFriction(0.6)
-    .setRestitution(0.1); 
+    .setFriction(PHYSICS.friction)
+    .setRestitution(PHYSICS.restitution)
+    .setMass(PHYSICS.massCoin); // Берем 5.5 грамм из конфига
 
   world.createCollider(colliderDesc, body);
   return body;
@@ -716,13 +738,15 @@ function createSimplePhysicsBody(radius, halfHeight, spawnPosition) {
 function createKinematicPhysicsBody(radius, halfHeight, spawnPosition) {
   const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
     .setTranslation(spawnPosition.x, spawnPosition.y, spawnPosition.z)
-    .setCcdEnabled(true);
+    .setCcdEnabled(true)
+    .enabledRotations(false, true, false); // Блокируем наклоны!
 
   const body = world.createRigidBody(bodyDesc);
 
   const colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, radius)
-    .setFriction(0.6)
-    .setRestitution(0.1); 
+    .setFriction(PHYSICS.friction)
+    .setRestitution(PHYSICS.restitution)
+    .setMass(PHYSICS.massStriker); // Берем 15 грамм из конфига
 
   world.createCollider(colliderDesc, body);
   return body;
