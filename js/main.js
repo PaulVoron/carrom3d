@@ -483,12 +483,6 @@ function setupPhysics(model) {
       const spawnPos = perfectPositions[i];
       // Origin в центре геометрии, значит центр фишки должен быть на halfHeight выше стола
       spawnPos.y = boardTopY + officialCoinHalfHeight;
-
-      // 🧪 ТЕСТ: ставим фишку #1 на базовую линию битка
-      if (i === 1) {
-        spawnPos.x = 0.05;
-        spawnPos.z = PLAYER_1_LINE_Z;
-      }
       
       const physRadius = (officialCoinDia / 2) * 0.98; // Зазор для стабильности
       const body = createSimplePhysicsBody(physRadius, officialCoinHalfHeight, spawnPos);
