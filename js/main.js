@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { create3DScene, loadModel, scene, camera, renderer, controls } from './3d-scene.js';
 
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 
 let world;
 let physicsBodies = []; // Массив объектов: { mesh, body }
@@ -13,7 +13,7 @@ let gameState = 'PLACEMENT'; // Состояния: PLACEMENT, AIMING, MOVING
 // === НАСТРОЙКИ ФИЗИКИ (Единый пульт управления) ===
 const PHYSICS = {
   damping: 0.3,           // Скольжение (меньше = дольше катятся)
-  friction: 0.05,          // Трение доски (пудра)
+  friction: 0.03,          // Трение доски (пудра)
   restitution: 0.7,       // Упругость фишек (отскок друг от друга)
   boardRestitution: 0.6,  // Упругость бортов стола
 
@@ -22,10 +22,20 @@ const PHYSICS = {
   massCoin: 0.0055,       // 5.5 грамм
 
   // Настройки Рогатки
-  maxPullDistance: 0.15,  // Максимальная длина оттяжки (15 см)
+  maxPullDistance: 0.2,  // Максимальная длина оттяжки (15 см)
   strikerForce: 0.5,      // Множитель силы импульса
   solverIterations: 15,   // Точность физики (спасает от проваливаний сквозь текстуры)
-  subStepping: 4,         // УБИЙЦА БАГОВ: Считаем коллизии 240 раз в секунду!
+
+  // === ФИКСИРОВАННЫЙ TIMESTEP ===
+  // При 240Hz каждый шаг = 4.16ms. Биток на макс скорости (~5 м/с) пролетает
+  // всего ~2 см за шаг — это МЕНЬШЕ радиуса фишки (1.59 см), что гарантирует коллизию.
+  fixedTimeStep: 1 / 240, // 240 Hz физика
+  maxSubSteps: 8,         // Макс шагов за кадр (защита от spiral of death)
+  maxCcdSubsteps: 4,      // CCD подшаги внутри каждого fixedStep (подстраховка)
+
+  // Ограничитель скорости (предотвращает туннелирование при экстремальных импульсах)
+  // Фишка диаметром 3.18 см: maxSpeed = 0.0159 / fixedTimeStep * 0.8 ≈ 3 м/с
+  maxLinearSpeed: 3.0,    // м/с — абсолютный потолок скорости любого тела
 
   // Настройки Луз
   pocketRadius: 0.02275,  // Радиус лузы (44.5 мм / 2)
@@ -73,6 +83,10 @@ let currentImpulse = new THREE.Vector3(); // Вектор удара
 
 // === MOVING LOGIC ===
 let checkSleepFrameCount = 0;
+
+// === FIXED TIMESTEP ACCUMULATOR ===
+let physicsAccumulator = 0;
+let lastPhysicsTime = 0;
 
 // === UI BUTTON ===
 let confirmButton = null;
@@ -133,6 +147,10 @@ function onConfirmPlacement() {
 
   gameState = 'AIMING';
   updateButtonVisibility();
+
+  // Сбрасываем аккумулятор, чтобы первый кадр после паузы не получил огромный delta
+  lastPhysicsTime = 0;
+  physicsAccumulator = 0;
 
   // Переводим биток из kinematic в dynamic для физического взаимодействия
   const body = strikerEntry.body;
@@ -377,8 +395,9 @@ async function init() {
 
   const gravity = { x: 0.0, y: -9.81, z: 0.0 };
   world = new RAPIER.World(gravity);
+  world.timestep = PHYSICS.fixedTimeStep;            // Фиксированный шаг 1/240
   world.numSolverIterations = PHYSICS.solverIterations;
-  world.integrationParameters.maxCcdSubsteps = PHYSICS.subStepping;
+  world.integrationParameters.maxCcdSubsteps = PHYSICS.maxCcdSubsteps;
 
   await create3DScene(updatePhysics);
   const model = await loadModel('/models/carrom-draco.glb');
@@ -390,8 +409,8 @@ async function init() {
   setupAimLine();
 
   // Прогоняем физику для "осаживания" фишек на поверхность стола
-  // (гравитация усаживает всё на точные позиции за ~1 секунду симуляции)
-  for (let i = 0; i < 60; i++) {
+  // (гравитация усаживает всё на точные позиции; при 240Hz нужно больше итераций)
+  for (let i = 0; i < 240; i++) {
     world.step();
   }
   // Синхронизируем визуал после settling
@@ -426,8 +445,34 @@ function updatePhysics() {
   // В режиме PLACEMENT физика заморожена — биток перемещается программно,
   // а коллизии проверяются математически в validatePlacement()
   if (gameState !== 'PLACEMENT') {
-    world.step();
-    checkPocketIntersections();
+    // === ФИКСИРОВАННЫЙ TIMESTEP С АККУМУЛЯТОРОМ ===
+    // Гарантирует одинаковое поведение физики на любом фреймрейте (30, 60, 144 fps).
+    // При 240Hz шаг = 4.16ms, биток на макс скорости пролетает ~2 см — меньше радиуса фишки.
+    const now = performance.now() / 1000; // в секундах
+    if (lastPhysicsTime === 0) lastPhysicsTime = now;
+    let frameDelta = now - lastPhysicsTime;
+    lastPhysicsTime = now;
+
+    // Защита от spiral of death: если вкладка была свёрнута, не пытаемся догнать
+    if (frameDelta > PHYSICS.fixedTimeStep * PHYSICS.maxSubSteps) {
+      frameDelta = PHYSICS.fixedTimeStep * PHYSICS.maxSubSteps;
+    }
+
+    physicsAccumulator += frameDelta;
+
+    let stepsThisFrame = 0;
+    while (physicsAccumulator >= PHYSICS.fixedTimeStep && stepsThisFrame < PHYSICS.maxSubSteps) {
+      // Ограничиваем скорость ВСЕХ тел перед каждым шагом (защита от туннелирования)
+      clampAllBodiesSpeed();
+
+      world.step();
+      stepsThisFrame++;
+      physicsAccumulator -= PHYSICS.fixedTimeStep;
+    }
+
+    if (stepsThisFrame > 0) {
+      checkPocketIntersections();
+    }
   }
 
   // --- ЛОГИКА ЗАВЕРШЕНИЯ ХОДА ---
@@ -456,8 +501,6 @@ function updatePhysics() {
     }
   }
 
-  const currentTime = performance.now();
-
   physicsBodies.forEach((entry) => {
     const { mesh, body } = entry;
 
@@ -475,6 +518,29 @@ function updatePhysics() {
   });
 }
 
+/**
+ * Ограничивает линейную скорость всех динамических тел.
+ * Это КРИТИЧНО для предотвращения туннелирования: если тело движется быстрее,
+ * чем radius / timestep, оно пролетит сквозь другие объекты.
+ */
+function clampAllBodiesSpeed() {
+  const maxSpeed = PHYSICS.maxLinearSpeed;
+  const maxSpeedSq = maxSpeed * maxSpeed;
+
+  for (const entry of physicsBodies) {
+    const body = entry.body;
+    if (!body.isEnabled() || body.bodyType() !== RAPIER.RigidBodyType.Dynamic) continue;
+
+    const vel = body.linvel();
+    const speedSq = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z;
+
+    if (speedSq > maxSpeedSq) {
+      const scale = maxSpeed / Math.sqrt(speedSq);
+      body.setLinvel({ x: vel.x * scale, y: vel.y * scale, z: vel.z * scale }, true);
+    }
+  }
+}
+
 function checkPocketIntersections() {
   physicsBodies.forEach((entry) => {
     const { mesh, body } = entry;
@@ -482,7 +548,7 @@ function checkPocketIntersections() {
 
     const pos = body.translation();
     const vecPos = new THREE.Vector3(pos.x, 0, pos.z);
-    
+
     // Проверяем, находится ли центр фишки над лузой
     let isOverPocket = false;
     for (let center of pocketCenters) {
@@ -493,8 +559,8 @@ function checkPocketIntersections() {
     }
 
     // ИСПРАВЛЕНИЕ ЗДЕСЬ: напрямую берем коллайдер
-    const collider = body.collider(0); 
-    
+    const collider = body.collider(0);
+
     if (collider) {
       if (isOverPocket) {
         // Если фишка только что оказалась над лузой
@@ -556,6 +622,10 @@ function endTurn() {
 
   gameState = 'PLACEMENT';
   updateButtonVisibility();
+
+  // Сбрасываем аккумулятор для следующего хода
+  lastPhysicsTime = 0;
+  physicsAccumulator = 0;
 }
 
 // Главная функция настройки сцены
@@ -818,8 +888,7 @@ function createSimplePhysicsBody(radius, halfHeight, spawnPosition) {
     .setTranslation(spawnPosition.x, spawnPosition.y, spawnPosition.z)
     .setCcdEnabled(true)
     .setLinearDamping(PHYSICS.damping)
-    .setAngularDamping(PHYSICS.damping)
-    .enabledRotations(false, true, false);
+    .setAngularDamping(PHYSICS.damping);
 
   const body = world.createRigidBody(bodyDesc);
 
@@ -842,8 +911,7 @@ function createSimplePhysicsBody(radius, halfHeight, spawnPosition) {
 function createKinematicPhysicsBody(radius, halfHeight, spawnPosition) {
   const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
     .setTranslation(spawnPosition.x, spawnPosition.y, spawnPosition.z)
-    .setCcdEnabled(true)
-    .enabledRotations(false, true, false);
+    .setCcdEnabled(true);
 
   const body = world.createRigidBody(bodyDesc);
 
