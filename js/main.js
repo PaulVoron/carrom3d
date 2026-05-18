@@ -39,7 +39,13 @@ const PHYSICS = {
 
   // Настройки Луз
   pocketRadius: 0.02275,  // Радиус лузы (44.5 мм / 2)
-  pocketFallDepth: -0.1   // На какой глубине удалять фишку со сцены
+  pocketFallDepth: -0.1,  // На какой глубине удалять фишку со сцены
+
+  // === POCKET DRAG (Эффект "засасывания" в лузу) ===
+  // Когда фишка пролетает над лузой, замедляем горизонтальную скорость
+  // и притягиваем к центру лузы — имитируя проваливание в отверстие.
+  pocketDragFactor: 0.85,   // Множитель горизонтальной скорости за шаг (0.85 = 15% потери за шаг при 240Hz)
+  pocketPullForce: 0.3,     // Сила притяжения к центру лузы (Н). Больше = агрессивнее затягивает
 };
 
 // === МАСКИ СТОЛКНОВЕНИЙ ===
@@ -403,7 +409,7 @@ async function init() {
   const model = await loadModel('/models/carrom-draco.glb');
   if (!model) return;
 
-  model.position.y = -0.001;
+  model.position.y = 0;
 
   setupPhysics(model);
   setupAimLine();
@@ -549,16 +555,19 @@ function checkPocketIntersections() {
     const pos = body.translation();
     const vecPos = new THREE.Vector3(pos.x, 0, pos.z);
 
-    // Проверяем, находится ли центр фишки над лузой
+    // Проверяем, находится ли центр фишки над лузой, и запоминаем ближайший центр
     let isOverPocket = false;
+    let nearestPocketCenter = null;
+    let nearestDist = Infinity;
     for (let center of pocketCenters) {
-      if (vecPos.distanceTo(center) < PHYSICS.pocketRadius * 0.8) {
+      const dist = vecPos.distanceTo(center);
+      if (dist < PHYSICS.pocketRadius * 0.8 && dist < nearestDist) {
         isOverPocket = true;
-        break;
+        nearestPocketCenter = center;
+        nearestDist = dist;
       }
     }
 
-    // ИСПРАВЛЕНИЕ ЗДЕСЬ: напрямую берем коллайдер
     const collider = body.collider(0);
 
     if (collider) {
@@ -568,6 +577,32 @@ function checkPocketIntersections() {
           collider.setCollisionGroups(MASK_COIN_FALLING); // Пол исчезает
           body.wakeUp(); // БУДИМ ФИШКУ, чтобы гравитация потянула ее вниз!
           mesh.userData.isFalling = true;
+        }
+
+        // === POCKET DRAG: Замедляем и притягиваем к центру лузы ===
+        // Имитация проваливания: фишка теряет горизонтальную скорость и
+        // «скатывается» к центру отверстия, не отскакивая от дальнего борта.
+        const vel = body.linvel();
+
+        // 1. Горизонтальное торможение (вертикальную скорость не трогаем — пусть падает)
+        body.setLinvel({
+          x: vel.x * PHYSICS.pocketDragFactor,
+          y: vel.y,
+          z: vel.z * PHYSICS.pocketDragFactor
+        }, true);
+
+        // 2. Притяжение к центру лузы (мягкая сила)
+        if (nearestPocketCenter && nearestDist > 0.001) {
+          const pullDir = {
+            x: (nearestPocketCenter.x - pos.x) / nearestDist,
+            z: (nearestPocketCenter.z - pos.z) / nearestDist
+          };
+          const pullStrength = PHYSICS.pocketPullForce * PHYSICS.fixedTimeStep;
+          body.applyImpulse({
+            x: pullDir.x * pullStrength,
+            y: 0,
+            z: pullDir.z * pullStrength
+          }, true);
         }
       } else {
         // Если фишка балансировала на краю, но отскочила обратно на стол
@@ -589,10 +624,23 @@ function checkPocketIntersections() {
 
 function processPocketResult(entry) {
   const { mesh, body } = entry;
-  body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-  body.sleep();
-  body.setEnabled(false);
-  mesh.visible = false;
+
+  if (entry === strikerEntry) {
+    // === БИТОК В ЛУЗЕ: не удаляем, а помечаем для восстановления ===
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    body.sleep();
+    body.setEnabled(false);
+    mesh.visible = false;
+    mesh.userData.pocketed = true;
+    console.log('⚠️ Биток попал в лузу! Будет восстановлен в следующем ходе.');
+  } else {
+    // === ФИШКА В ЛУЗЕ: удаляем со сцены ===
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.sleep();
+    body.setEnabled(false);
+    mesh.visible = false;
+  }
 
   if (window.onPocketEnter) {
     window.onPocketEnter(mesh.userData.type, mesh.userData.id);
@@ -602,7 +650,18 @@ function processPocketResult(entry) {
 function endTurn() {
   console.log('🎱 State → PLACEMENT: Ход завершен, возвращаем биток.');
 
-  if (strikerEntry && strikerEntry.body.isEnabled()) {
+  if (strikerEntry) {
+    // Если биток был в лузе — восстанавливаем его
+    if (strikerEntry.mesh.userData.pocketed || !strikerEntry.body.isEnabled()) {
+      strikerEntry.body.setEnabled(true);
+      strikerEntry.mesh.visible = true;
+      strikerEntry.mesh.userData.pocketed = false;
+      // Восстанавливаем маску коллизий (на случай если isFalling не сбросился)
+      const collider = strikerEntry.body.collider(0);
+      if (collider) collider.setCollisionGroups(MASK_COIN_NORMAL);
+      console.log('🔄 Биток восстановлен из лузы.');
+    }
+
     strikerEntry.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
 
     // Сбрасываем скорости
@@ -616,6 +675,7 @@ function endTurn() {
     strikerEntry.body.setTranslation(resetPos, true);
     strikerEntry.body.setNextKinematicTranslation(resetPos, true);
     strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
+    strikerEntry.mesh.quaternion.set(0, 0, 0, 1); // СБРОС ВИЗУАЛЬНОГО ВРАЩЕНИЯ (т.к. в PLACEMENT синхронизация отключена)
 
     validatePlacement(0);
   }
@@ -706,7 +766,7 @@ function setupPhysics(model) {
       world.createCollider(wallRight, floorBody);
 
       // === 3. НЕВИДИМАЯ КРЫШКА ===
-      const roofHeight = 0.04;
+      const roofHeight = 0.34;
       const roofBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, roofHeight, 0);
       const roofBody = world.createRigidBody(roofBodyDesc);
       const roofColliderDesc = RAPIER.ColliderDesc.cuboid(2.0, 0.01, 2.0)
