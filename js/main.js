@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import gsap from 'gsap';
 import { create3DScene, loadModel, scene, camera, renderer, controls } from './3d-scene.js';
+import { START_CAMERA_POSITION } from './settings.js';
 
 const DEBUG_MODE = false;
 
@@ -479,18 +481,50 @@ function rotateCameraForPlayer(player) {
   
   controls.enabled = false;
   
-  const targetZ = player === 1 ? 1.213 : -1.213;
-  const targetX = player === 1 ? 0.005 : -0.005;
-  const targetY = 0.428;
+  const targetX = player === 1 ? START_CAMERA_POSITION[0] : -START_CAMERA_POSITION[0];
+  const targetY = START_CAMERA_POSITION[1];
+  const targetZ = player === 1 ? START_CAMERA_POSITION[2] : -START_CAMERA_POSITION[2];
   
-  if (window.gsap) {
-    window.gsap.to(camera.position, {
-      x: targetX,
+  if (gsap) {
+    // Плавно сбрасываем target в (0,0,0)
+    gsap.to(controls.target, {
+      x: 0,
+      y: 0,
+      z: 0,
+      duration: 1.5,
+      ease: "power2.inOut",
+      onUpdate: () => controls.update()
+    });
+
+    // Плавно вращаем камеру вокруг стола
+    const startX = camera.position.x;
+    const startZ = camera.position.z;
+    const startY = camera.position.y;
+    
+    const startAngle = Math.atan2(startZ, startX);
+    let endAngle = Math.atan2(targetZ, targetX);
+    
+    // Ищем кратчайший путь поворота
+    let diff = endAngle - startAngle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    endAngle = startAngle + diff;
+
+    const startRadius = Math.hypot(startX, startZ);
+    const endRadius = Math.hypot(targetX, targetZ);
+
+    const proxy = { angle: startAngle, radius: startRadius, y: startY };
+
+    gsap.to(proxy, {
+      angle: endAngle,
+      radius: endRadius,
       y: targetY,
-      z: targetZ,
       duration: 1.5,
       ease: "power2.inOut",
       onUpdate: () => {
+        camera.position.x = proxy.radius * Math.cos(proxy.angle);
+        camera.position.z = proxy.radius * Math.sin(proxy.angle);
+        camera.position.y = proxy.y;
         controls.update();
         if (window.requestRender) window.requestRender();
       },
@@ -501,6 +535,7 @@ function rotateCameraForPlayer(player) {
       }
     });
   } else {
+    controls.target.set(0, 0, 0);
     camera.position.set(targetX, targetY, targetZ);
     controls.update();
     controls.enabled = true;
