@@ -2,13 +2,20 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { create3DScene, loadModel, scene, camera, renderer, controls } from './3d-scene.js';
 
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 let world;
 let physicsBodies = []; // Массив объектов: { mesh, body }
 
 // === STATE MACHINE ===
 let gameState = 'PLACEMENT'; // Состояния: PLACEMENT, AIMING, MOVING
+
+// === RULES ENGINE STATE ===
+let currentPlayer = 1;
+let scores = { player1: 0, player2: 0 };
+let queenState = 'on_board'; // 'on_board' | 'pocketed_uncovered' | 'covered'
+let turnEvents = { pocketedOwn: 0, pocketedOpponent: 0, pocketedQueen: false, isFoul: false };
+
 
 // === НАСТРОЙКИ ФИЗИКИ (Единый пульт управления) ===
 const PHYSICS = {
@@ -66,8 +73,13 @@ let pocketCenters = []; // Сюда запишем центры луз
 
 // === STRIKER PLACEMENT CONSTANTS ===
 const PLAYER_1_LINE_Z = 0.25;   // Фиксированная Z-координата базовой линии Игрока 1 (ближняя к камере, Z+)
+const PLAYER_2_LINE_Z = -0.25;  // Фиксированная Z-координата базовой линии Игрока 2 (дальняя от камеры, Z-)
 const PLAYER_1_MIN_X = -0.20;   // Левая граница перемещения битка
 const PLAYER_1_MAX_X = 0.20;    // Правая граница перемещения битка
+
+function getCurrentLineZ() {
+  return currentPlayer === 1 ? PLAYER_1_LINE_Z : PLAYER_2_LINE_Z;
+}
 
 // === STRIKER REFERENCES (заполняются при спавне) ===
 let strikerEntry = null;        // { mesh, body } — ссылка на биток в physicsBodies
@@ -191,6 +203,311 @@ function setButtonDisabled(disabled) {
   }
 }
 
+// === RULES ENGINE UI & LOGIC ===
+function createScoreUI() {
+  const style = document.createElement('style');
+  style.textContent = `
+    #carrom-score-ui {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 12px 24px;
+      background: rgba(20, 20, 25, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #fff;
+      z-index: 1000;
+      pointer-events: none;
+      user-select: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .player-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 16px;
+      border-radius: 12px;
+      min-width: 100px;
+      transition: all 0.3s ease;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .player-panel.player-1.active {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.6);
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+    }
+    .player-panel.player-2.active {
+      background: rgba(0, 0, 0, 0.4);
+      border-color: rgba(79, 140, 255, 0.5);
+      box-shadow: 0 0 15px rgba(79, 140, 255, 0.25);
+    }
+    .player-name {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .player-1 .player-name {
+      color: #ffffff;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+    }
+    .player-2 .player-name {
+      color: #88888c;
+    }
+    .player-score {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+      font-feature-settings: "tnum";
+    }
+    .center-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+    }
+    #turn-indicator {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 30px;
+      transition: all 0.3s ease;
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+    #turn-indicator.turn-p1 {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+    #turn-indicator.turn-p2 {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+    }
+    .queen-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 16px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      min-width: 90px;
+    }
+    .queen-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #ff4f4f;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .queen-badge {
+      font-size: 13px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+    }
+    .queen-on-board {
+      color: #ff4f4f;
+      background: rgba(255, 79, 79, 0.1);
+      border: 1px solid rgba(255, 79, 79, 0.25);
+    }
+    .queen-pocketed-uncovered {
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.15);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      animation: flash-warning 1s infinite alternate;
+    }
+    .queen-covered {
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    @keyframes pulse-glow {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+    }
+    @keyframes flash-warning {
+      0% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  const container = document.createElement('div');
+  container.id = 'carrom-score-ui';
+  container.innerHTML = `
+    <div class="player-panel player-1 active" id="panel-p1">
+      <div class="player-name">Игрок 1 (Белые)</div>
+      <div class="player-score" id="score-p1">0</div>
+    </div>
+    
+    <div class="center-panel">
+      <div id="turn-indicator" class="turn-p1">ХОД: ИГРОК 1</div>
+    </div>
+    
+    <div class="player-panel player-2" id="panel-p2">
+      <div class="player-name">Игрок 2 (Черные)</div>
+      <div class="player-score" id="score-p2">0</div>
+    </div>
+    
+    <div class="queen-panel">
+      <div class="queen-label">Королева</div>
+      <div class="queen-badge queen-on-board" id="queen-status">На столе</div>
+    </div>
+  `;
+  document.body.appendChild(container);
+  
+  updateScoreUI();
+}
+
+function updateScoreUI() {
+  const scoreP1El = document.getElementById('score-p1');
+  const scoreP2El = document.getElementById('score-p2');
+  const turnIndEl = document.getElementById('turn-indicator');
+  const queenStatEl = document.getElementById('queen-status');
+  const panelP1 = document.getElementById('panel-p1');
+  const panelP2 = document.getElementById('panel-p2');
+
+  if (!scoreP1El || !scoreP2El || !turnIndEl || !queenStatEl || !panelP1 || !panelP2) return;
+
+  scoreP1El.textContent = scores.player1;
+  scoreP2El.textContent = scores.player2;
+
+  if (currentPlayer === 1) {
+    turnIndEl.textContent = 'ХОД: ИГРОК 1';
+    turnIndEl.className = 'turn-p1';
+    panelP1.classList.add('active');
+    panelP2.classList.remove('active');
+  } else {
+    turnIndEl.textContent = 'ХОД: ИГРОК 2';
+    turnIndEl.className = 'turn-p2';
+    panelP1.classList.remove('active');
+    panelP2.classList.add('active');
+  }
+
+  if (queenState === 'on_board') {
+    queenStatEl.textContent = 'На столе';
+    queenStatEl.className = 'queen-badge queen-on-board';
+  } else if (queenState === 'pocketed_uncovered') {
+    queenStatEl.textContent = 'Забита';
+    queenStatEl.className = 'queen-badge queen-pocketed-uncovered';
+  } else if (queenState === 'covered') {
+    queenStatEl.textContent = 'Закрыта';
+    queenStatEl.className = 'queen-badge queen-covered';
+  }
+}
+
+function evaluateTurn() {
+  console.log(`📊 Evaluating turn for Player ${currentPlayer}. Events:`, turnEvents);
+
+  // Обновляем очки
+  if (currentPlayer === 1) {
+    scores.player1 += turnEvents.pocketedOwn;
+    scores.player2 += turnEvents.pocketedOpponent;
+  } else {
+    scores.player2 += turnEvents.pocketedOwn;
+    scores.player1 += turnEvents.pocketedOpponent;
+  }
+
+  // Фиксируем статус Королевы
+  if (turnEvents.pocketedQueen) {
+    if (turnEvents.pocketedOwn > 0 && !turnEvents.isFoul) {
+      queenState = 'covered';
+      console.log(`👑 Queen pocketed and COVERED on the same turn!`);
+    } else {
+      queenState = 'pocketed_uncovered';
+      console.log(`👑 Queen pocketed but NOT covered yet.`);
+    }
+  } else if (queenState === 'pocketed_uncovered') {
+    if (turnEvents.pocketedOwn > 0 && !turnEvents.isFoul) {
+      queenState = 'covered';
+      console.log(`👑 Queen is now COVERED!`);
+    }
+  }
+
+  let nextPlayer = currentPlayer;
+
+  if (turnEvents.isFoul) {
+    console.log(`❌ Foul! Player ${currentPlayer} pocketed the striker.`);
+    nextPlayer = (currentPlayer === 1) ? 2 : 1;
+  } else if (turnEvents.pocketedOwn > 0) {
+    console.log(`🎯 Player ${currentPlayer} pocketed their own coin! Extra turn.`);
+    nextPlayer = currentPlayer;
+  } else {
+    // Либо забита только чужая фишка, либо ничего не забито
+    nextPlayer = (currentPlayer === 1) ? 2 : 1;
+    if (turnEvents.pocketedOpponent > 0) {
+      console.log(`🔄 Player ${currentPlayer} pocketed only opponent's coin. Turn switches.`);
+    } else {
+      console.log(`💤 Player ${currentPlayer} didn't pocket anything. Turn switches.`);
+    }
+  }
+
+  currentPlayer = nextPlayer;
+
+  // Очищаем события для следующего хода
+  turnEvents = {
+    pocketedOwn: 0,
+    pocketedOpponent: 0,
+    pocketedQueen: false,
+    isFoul: false
+  };
+
+  updateScoreUI();
+}
+
+function rotateCameraForPlayer(player) {
+  if (!camera || !controls) return;
+  
+  controls.enabled = false;
+  
+  const targetZ = player === 1 ? 1.213 : -1.213;
+  const targetX = player === 1 ? 0.005 : -0.005;
+  const targetY = 0.428;
+  
+  if (window.gsap) {
+    window.gsap.to(camera.position, {
+      x: targetX,
+      y: targetY,
+      z: targetZ,
+      duration: 1.5,
+      ease: "power2.inOut",
+      onUpdate: () => {
+        controls.update();
+        if (window.requestRender) window.requestRender();
+      },
+      onComplete: () => {
+        controls.enabled = true;
+        controls.update();
+        if (window.requestRender) window.requestRender();
+      }
+    });
+  } else {
+    camera.position.set(targetX, targetY, targetZ);
+    controls.update();
+    controls.enabled = true;
+  }
+}
+
+
 // --- DRAG & DROP (PLACEMENT MODE) ---
 
 function setupPlacementControls() {
@@ -246,12 +563,12 @@ function onPointerMove(event) {
 
       // Перемещаем физическое тело (kinematic) — Y и Z заблокированы
       strikerEntry.body.setNextKinematicTranslation(
-        { x: clampedX, y: strikerSpawnY, z: PLAYER_1_LINE_Z },
+        { x: clampedX, y: strikerSpawnY, z: getCurrentLineZ() },
         true
       );
 
       // Сразу синхронизируем визуал (для мгновенного отклика)
-      strikerEntry.mesh.position.set(clampedX, strikerSpawnY, PLAYER_1_LINE_Z);
+      strikerEntry.mesh.position.set(clampedX, strikerSpawnY, getCurrentLineZ());
 
       // Проверяем пересечения с фишками
       validatePlacement(clampedX);
@@ -327,7 +644,7 @@ function updatePointerNDC(event) {
 // --- ВАЛИДАЦИЯ ПЕРЕСЕЧЕНИЙ (2D Математика) ---
 
 function validatePlacement(strikerX) {
-  const strikerZ = PLAYER_1_LINE_Z;
+  const strikerZ = getCurrentLineZ();
   const minDist = strikerPhysRadius + coinPhysRadius;
   let hasCollision = false;
 
@@ -435,6 +752,7 @@ async function init() {
 
   // Создаём UI и контролы расстановки
   createUI();
+  createScoreUI();
   setupPlacementControls();
 
   // Начальная валидация позиции
@@ -625,6 +943,21 @@ function checkPocketIntersections() {
 function processPocketResult(entry) {
   const { mesh, body } = entry;
 
+  // Записываем события текущего удара в turnEvents
+  const type = mesh.userData.type;
+  if (type === 'striker') {
+    turnEvents.isFoul = true;
+  } else if (type === 'queen') {
+    turnEvents.pocketedQueen = true;
+  } else if (type === 'white' || type === 'black') {
+    const ownColor = (currentPlayer === 1) ? 'white' : 'black';
+    if (type === ownColor) {
+      turnEvents.pocketedOwn++;
+    } else {
+      turnEvents.pocketedOpponent++;
+    }
+  }
+
   if (entry === strikerEntry) {
     // === БИТОК В ЛУЗЕ: не удаляем, а помечаем для восстановления ===
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -648,7 +981,13 @@ function processPocketResult(entry) {
 }
 
 function endTurn() {
-  console.log('🎱 State → PLACEMENT: Ход завершен, возвращаем биток.');
+  console.log('🎱 State → PLACEMENT: Ход завершен, оцениваем ход.');
+
+  // Запускаем расчет очков и смену ходов
+  evaluateTurn();
+
+  // Поворачиваем камеру к текущему игроку
+  rotateCameraForPlayer(currentPlayer);
 
   if (strikerEntry) {
     // Если биток был в лузе — восстанавливаем его
@@ -671,7 +1010,7 @@ function endTurn() {
     // СБРОС ВРАЩЕНИЯ: возвращаем идеально ровное положение
     strikerEntry.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
 
-    const resetPos = { x: 0, y: strikerSpawnY, z: PLAYER_1_LINE_Z };
+    const resetPos = { x: 0, y: strikerSpawnY, z: getCurrentLineZ() };
     strikerEntry.body.setTranslation(resetPos, true);
     strikerEntry.body.setNextKinematicTranslation(resetPos, true);
     strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
@@ -926,7 +1265,7 @@ function setupPhysics(model) {
 
     // Спавн строго на базовой линии Игрока 1 (X = 0, Z = PLAYER_1_LINE_Z)
     strikerSpawnY = boardTopY + officialStrikerHalfHeight;
-    const spawnPos = new THREE.Vector3(0, strikerSpawnY, PLAYER_1_LINE_Z);
+    const spawnPos = new THREE.Vector3(0, strikerSpawnY, getCurrentLineZ());
 
     strikerPhysRadius = (officialStrikerDia / 2) * 1;
 
