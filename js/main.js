@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { create3DScene, loadModel, scene, camera, renderer, controls } from './3d-scene.js';
 
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 let world;
 let physicsBodies = []; // Массив объектов: { mesh, body }
@@ -23,12 +23,12 @@ const PHYSICS = {
 
   // Настройки Рогатки
   maxPullDistance: 0.15,  // Максимальная длина оттяжки (15 см)
-  strikerForce: 0.7,      // Множитель силы импульса
+  strikerForce: 0.5,      // Множитель силы импульса
   solverIterations: 15,   // Точность физики (спасает от проваливаний сквозь текстуры)
   subStepping: 4,         // УБИЙЦА БАГОВ: Считаем коллизии 240 раз в секунду!
 
   // Настройки Луз
-  pocketRadius: 0.02225,  // Радиус лузы (44.5 мм / 2)
+  pocketRadius: 0.02275,  // Радиус лузы (44.5 мм / 2)
   pocketFallDepth: -0.1   // На какой глубине удалять фишку со сцены
 };
 
@@ -647,7 +647,7 @@ function setupPhysics(model) {
 
       if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) {
         // ==========================================
-        // 🛠️ ВИЗУАЛЬНЫЙ ДЕБАГГИНГ (ПОЛ И БОРТА) 🛠️
+        // 🛠️ ВИЗУАЛЬНЫЙ ДЕБАГГИНГ (ПОЛ, БОРТА И ЛУЗЫ) 🛠️
         // ==========================================
         function drawDebugBox(w, h, d, x, y, z, color) {
           const geo = new THREE.BoxGeometry(w, h, d);
@@ -662,17 +662,38 @@ function setupPhysics(model) {
           scene.add(mesh);
         }
 
-        // Один сплошной синий прямоугольник для пола (больше никаких 3-х плит)
+        // Функция для отрисовки цилиндров луз
+        function drawDebugCylinder(radius, height, x, y, z, color) {
+          const geo = new THREE.CylinderGeometry(radius, radius, height, 32);
+          const mat = new THREE.MeshBasicMaterial({
+            color: color,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.6
+          });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(x, y, z);
+          scene.add(mesh);
+        }
+
+        // 1. Один сплошной синий прямоугольник для пола
         drawDebugBox(widthX, floorHalfHeight * 2, widthZ, cx, floorCenterY, cz, 0x0088ff);
 
-        // Красные бетонные борта
+        // 2. Красные бетонные борта
         drawDebugBox(widthX + wt * 2, wh * 2, wt, cx, wy, minZ - wt / 2, 0xff0000);
         drawDebugBox(widthX + wt * 2, wh * 2, wt, cx, wy, maxZ + wt / 2, 0xff0000);
         drawDebugBox(wt, wh * 2, widthZ + wt * 2, minX - wt / 2, wy, cz, 0xff0000);
         drawDebugBox(wt, wh * 2, widthZ + wt * 2, maxX + wt / 2, wy, cz, 0xff0000);
 
-        // Зеленая крышка
+        // 3. Зеленая крышка
         drawDebugBox(4.0, 0.02, 4.0, 0, roofHeight, 0, 0x00ff00);
+
+        // 4. Фиолетовые зоны срабатывания луз (триггеры)
+        const triggerRadius = PHYSICS.pocketRadius * 1;
+        pocketCenters.forEach((pos) => {
+          // Отрисовываем цилиндр высотой 10 см, чтобы его было хорошо видно сквозь стол
+          drawDebugCylinder(triggerRadius, 0.1, pos.x, boardTopY, pos.z, 0xff00ff);
+        });
         // ==========================================
       }
     }
