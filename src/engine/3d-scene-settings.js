@@ -4,7 +4,7 @@
 
 export const GUI_MODE_LIGHTING = true;
 export const DEV_MODE_HELPERS = false;
-export const DEBUG_MODE = true; // Визуальный дебаг физических коллизий и триггерных зон луз
+export const DEBUG_MODE = false; // Визуальный дебаг физических коллизий и триггерных зон луз
 
 export const MODEL_CENTER_POSITION = 0;
 export const START_CAMERA_POSITION = [0.005, 0.428, 1.113];
