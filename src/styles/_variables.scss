@@ -1,0 +1,23 @@
+// src/styles/_variables.scss
+
+$font-primary: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+$font-secondary: 'Inter', 'Segoe UI', sans-serif;
+
+$color-bg: #000;
+$color-text-primary: #fff;
+$color-text-secondary: #88888c;
+
+$color-player-1: #ffffff;
+$color-player-2: #38bdf8;
+$color-queen: #ff4f4f;
+$color-queen-pocketed: #fbbf24;
+$color-queen-covered: #10b981;
+
+$color-btn-gradient-start: #4f8cff;
+$color-btn-gradient-end: #3366cc;
+$color-btn-shadow: rgba(79, 140, 255, 0.4);
+
+$color-panel-bg: rgba(20, 20, 25, 0.85);
+$color-panel-border: rgba(255, 255, 255, 0.1);
+
+$z-index-ui: 1000;

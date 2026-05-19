@@ -1,0 +1,35 @@
+// src/components/ConfirmButton/ConfirmButton.module.scss
+@use '../../styles/variables' as *;
+
+.button {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 36px;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: $font-secondary;
+  color: #ffffff;
+  background: linear-gradient(135deg, $color-btn-gradient-start 0%, $color-btn-gradient-end 100%);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px $color-btn-shadow;
+  transition: all 0.25s ease;
+  z-index: $z-index-ui;
+  letter-spacing: 0.5px;
+  user-select: none;
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 6px 28px rgba(79, 140, 255, 0.6);
+    transform: translateX(-50%) translateY(-2px);
+  }
+
+  &:disabled {
+    background: linear-gradient(135deg, #888 0%, #666 100%);
+    cursor: not-allowed;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    opacity: 0.6;
+  }
+}

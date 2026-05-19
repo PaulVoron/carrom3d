@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import gsap from 'gsap';
 import { create3DScene, loadModel, scene, camera, renderer, controls } from './3d-scene.js';
-import { START_CAMERA_POSITION } from './settings.js';
+import { START_CAMERA_POSITION } from '../src/engine/3d-scene-settings.js';
 
 const DEBUG_MODE = false;
 
@@ -376,7 +376,7 @@ function createScoreUI() {
     </div>
   `;
   document.body.appendChild(container);
-  
+
   updateScoreUI();
 }
 
@@ -478,13 +478,13 @@ function evaluateTurn() {
 
 function rotateCameraForPlayer(player) {
   if (!camera || !controls) return;
-  
+
   controls.enabled = false;
-  
+
   const targetX = player === 1 ? START_CAMERA_POSITION[0] : -START_CAMERA_POSITION[0];
   const targetY = START_CAMERA_POSITION[1];
   const targetZ = player === 1 ? START_CAMERA_POSITION[2] : -START_CAMERA_POSITION[2];
-  
+
   if (gsap) {
     // Плавно сбрасываем target в (0,0,0)
     gsap.to(controls.target, {
@@ -500,10 +500,10 @@ function rotateCameraForPlayer(player) {
     const startX = camera.position.x;
     const startZ = camera.position.z;
     const startY = camera.position.y;
-    
+
     const startAngle = Math.atan2(startZ, startX);
     let endAngle = Math.atan2(targetZ, targetX);
-    
+
     // Ищем кратчайший путь поворота
     let diff = endAngle - startAngle;
     while (diff > Math.PI) diff -= Math.PI * 2;

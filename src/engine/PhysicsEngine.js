@@ -1,0 +1,422 @@
+/**
+ * PhysicsEngine.js
+ * Инкапсулирует всё что связано с Rapier3D.
+ * Не знает о React, Zustand или DOM.
+ * Общается с остальным миром через:
+ *   - методы (applyImpulse, addBody, step…)
+ *   - коллбэки (onPocketEnter)
+ */
+
+import RAPIER from '@dimforge/rapier3d-compat';
+
+// ─── Настройки физики ─────────────────────────────────────────────────────────
+
+export const PHYSICS = {
+  damping: 0.3,            // Линейное затухание (сопротивление среды/трение качения)
+  friction: 0.03,          // Коэффициент трения фишек о поверхность стола
+  restitution: 0.7,        // Упругость фишек (коэффициент отскока при соударении друг с другом)
+  boardRestitution: 0.6,   // Упругость бортов стола при отскоке фишек
+ 
+  coinDia: 0.0318,         // Диаметр фишки (31.8 мм)
+  coinHeight: 0.008,       // Высота фишки (8 мм)
+  massCoin: 0.0055,        // Масса обычной фишки в кг
+  
+  strikerDia: 0.0413,      // Диаметр битка (25.4 мм)
+  strikerHeight: 0.008,    // Высота битка (8 мм)
+  massStriker: 0.015,      // Масса битка в кг
+ 
+  maxPullDistance: 0.2,    // Максимальная дистанция оттяжки кия/мыши при прицеливании
+  strikerForce: 0.5,       // Множитель силы удара по битку
+  solverIterations: 15,    // Количество итераций солвера Rapier3D (выше = точнее контакты)
+ 
+  fixedTimeStep: 1 / 240,  // Фиксированный шаг симуляции (240Hz) для устранения прохождения сквозь стены
+  maxSubSteps: 8,          // Предельное число подшагов физики за один кадр рендеринга
+  maxCcdSubsteps: 4,       // Число подшагов CCD (Continuous Collision Detection) для быстролетящих тел
+ 
+  maxLinearSpeed: 3.0,     // Ограничение максимальной скорости фишек для стабильности физики
+ 
+  pocketRadius: 0.02275,   // Радиус триггерных зон луз
+  pocketFallDepth: -0.1,   // Координата Y, ниже которой фишка считается полностью забитой
+ 
+  pocketDragFactor: 0.85,  // Множитель затухания скорости (трения) при попадании в лузу
+  pocketPullForce: 0.3,    // Сила, притягивающая фишку к центру лузы (эффект провала)
+
+  // Цвета фишек
+  colorRed: 0xff0000,
+  colorBlack: 0x444444,
+  colorWhite: 0xbbbbbb,
+};
+
+// ─── Маски столкновений ───────────────────────────────────────────────────────
+
+const COL_GROUP_COIN  = 0x0001;
+const COL_GROUP_FLOOR = 0x0002;
+const COL_GROUP_WALLS = 0x0004;
+
+export const MASK_COIN_NORMAL  = (COL_GROUP_COIN << 16) | (COL_GROUP_COIN | COL_GROUP_FLOOR | COL_GROUP_WALLS);
+export const MASK_COIN_FALLING = (COL_GROUP_COIN << 16) | (COL_GROUP_COIN | COL_GROUP_WALLS);
+export const MASK_FLOOR        = (COL_GROUP_FLOOR << 16) | COL_GROUP_COIN;
+export const MASK_WALLS        = (COL_GROUP_WALLS << 16) | COL_GROUP_COIN;
+
+// ─── PhysicsEngine ────────────────────────────────────────────────────────────
+
+export class PhysicsEngine {
+  constructor() {
+    /** @type {RAPIER.World | null} */
+    this.world = null;
+
+    /** @type {Array<{mesh: THREE.Object3D, body: RAPIER.RigidBody}>} */
+    this.physicsBodies = [];
+
+    /** Центры луз (THREE.Vector3[]) */
+    this.pocketCenters = [];
+
+    // Аккумулятор фиксированного timestep
+    this._accumulator = 0;
+    this._lastTime = 0;
+
+    /** Коллбэк: вызывается когда объект упал в лузу */
+    this.onPocketEnter = null;
+  }
+
+  // ─── Инициализация ──────────────────────────────────────────────────────────
+
+  async init() {
+    await RAPIER.init();
+
+    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    this.world.timestep = PHYSICS.fixedTimeStep;
+    this.world.numSolverIterations = PHYSICS.solverIterations;
+    this.world.integrationParameters.maxCcdSubsteps = PHYSICS.maxCcdSubsteps;
+  }
+
+  // ─── Создание физических тел ────────────────────────────────────────────────
+
+  /**
+   * Создаёт динамическое тело (фишка / монета).
+   * @param {number} radius
+   * @param {number} halfHeight
+   * @param {{x:number, y:number, z:number}} spawnPos
+   * @returns {RAPIER.RigidBody}
+   */
+  createDynamicBody(radius, halfHeight, spawnPos) {
+    const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(spawnPos.x, spawnPos.y, spawnPos.z)
+      .setCcdEnabled(true)
+      .setLinearDamping(PHYSICS.damping)
+      .setAngularDamping(PHYSICS.damping);
+
+    const body = this.world.createRigidBody(bodyDesc);
+
+    const colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, radius)
+      .setFriction(PHYSICS.friction)
+      .setRestitution(PHYSICS.restitution)
+      .setMass(PHYSICS.massCoin)
+      .setCollisionGroups(MASK_COIN_NORMAL);
+
+    this.world.createCollider(colliderDesc, body);
+    return body;
+  }
+
+  /**
+   * Создаёт кинематическое тело (биток в режиме PLACEMENT).
+   * @param {number} radius
+   * @param {number} halfHeight
+   * @param {{x:number, y:number, z:number}} spawnPos
+   * @returns {RAPIER.RigidBody}
+   */
+  createKinematicBody(radius, halfHeight, spawnPos) {
+    const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
+      .setTranslation(spawnPos.x, spawnPos.y, spawnPos.z)
+      .setCcdEnabled(true);
+
+    const body = this.world.createRigidBody(bodyDesc);
+
+    const colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, radius)
+      .setFriction(PHYSICS.friction)
+      .setRestitution(PHYSICS.restitution)
+      .setMass(PHYSICS.massStriker)
+      .setCollisionGroups(MASK_COIN_NORMAL);
+
+    this.world.createCollider(colliderDesc, body);
+    return body;
+  }
+
+  /**
+   * Создаёт статическое тело доски (пол + борта).
+   * @param {object} params — геометрия стола
+   */
+  createBoardBodies({ minX, maxX, minZ, maxZ, cx, cz, widthX, widthZ }) {
+    const pr = PHYSICS.pocketRadius;
+    // Сохраняем центры луз (THREE.Vector3 создаётся снаружи через коллбэк,
+    // здесь храним просто { x, z })
+    this.pocketCenters = [
+      { x: maxX - pr, y: 0, z: maxZ - pr },
+      { x: maxX - pr, y: 0, z: minZ + pr },
+      { x: minX + pr, y: 0, z: maxZ - pr },
+      { x: minX + pr, y: 0, z: minZ + pr },
+    ];
+
+    const boardTopY     = 0.001;
+    const floorHalfH    = 0.05;
+    const floorCenterY  = boardTopY - floorHalfH;
+
+    const floorBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, floorCenterY, 0);
+    const floorBody = this.world.createRigidBody(floorBodyDesc);
+
+    // Пол
+    this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(widthX / 2, floorHalfH, widthZ / 2)
+        .setTranslation(cx, 0, cz)
+        .setFriction(PHYSICS.friction)
+        .setRestitution(0.1)
+        .setCollisionGroups(MASK_FLOOR),
+      floorBody
+    );
+
+    // Борта
+    const wt = 0.1;
+    const wh = 0.10;
+    const wy = floorHalfH - 0.05;
+
+    const walls = [
+      RAPIER.ColliderDesc.cuboid(widthX / 2 + wt, wh, wt / 2).setTranslation(cx, wy, minZ - wt / 2),
+      RAPIER.ColliderDesc.cuboid(widthX / 2 + wt, wh, wt / 2).setTranslation(cx, wy, maxZ + wt / 2),
+      RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt).setTranslation(minX - wt / 2, wy, cz),
+      RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt).setTranslation(maxX + wt / 2, wy, cz),
+    ];
+    walls.forEach(w => {
+      this.world.createCollider(
+        w.setFriction(0.1).setRestitution(PHYSICS.boardRestitution).setCollisionGroups(MASK_WALLS),
+        floorBody
+      );
+    });
+
+    // Невидимая крышка
+    const roofHeight = 0.34;
+    const roofBody = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, roofHeight, 0)
+    );
+    this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(2.0, 0.01, 2.0)
+        .setFriction(0.0)
+        .setRestitution(0.2)
+        .setCollisionGroups(MASK_WALLS),
+      roofBody
+    );
+  }
+
+  // ─── Шаг физики ─────────────────────────────────────────────────────────────
+
+  /**
+   * Выполняет физический шаг с фиксированным timestep.
+   * Вызывается из RAF-цикла для всех фаз кроме PLACEMENT.
+   * @returns {number} Количество выполненных шагов
+   */
+  tick() {
+    const now = performance.now() / 1000;
+    if (this._lastTime === 0) this._lastTime = now;
+
+    let frameDelta = now - this._lastTime;
+    this._lastTime = now;
+
+    // Защита от spiral of death
+    const maxDelta = PHYSICS.fixedTimeStep * PHYSICS.maxSubSteps;
+    if (frameDelta > maxDelta) frameDelta = maxDelta;
+
+    this._accumulator += frameDelta;
+
+    let steps = 0;
+    while (this._accumulator >= PHYSICS.fixedTimeStep && steps < PHYSICS.maxSubSteps) {
+      this._clampAllSpeeds();
+      this.world.step();
+      steps++;
+      this._accumulator -= PHYSICS.fixedTimeStep;
+    }
+
+    return steps;
+  }
+
+  /** Сбросить аккумулятор (после паузы, смены фазы) */
+  resetAccumulator() {
+    this._lastTime = 0;
+    this._accumulator = 0;
+  }
+
+  // ─── Скорости ────────────────────────────────────────────────────────────────
+
+  _clampAllSpeeds() {
+    const maxSpeed = PHYSICS.maxLinearSpeed;
+    const maxSq = maxSpeed * maxSpeed;
+
+    for (const entry of this.physicsBodies) {
+      const body = entry.body;
+      if (!body.isEnabled() || body.bodyType() !== RAPIER.RigidBodyType.Dynamic) continue;
+      const vel = body.linvel();
+      const sq = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z;
+      if (sq > maxSq) {
+        const s = maxSpeed / Math.sqrt(sq);
+        body.setLinvel({ x: vel.x * s, y: vel.y * s, z: vel.z * s }, true);
+      }
+    }
+  }
+
+  // ─── Лузы ────────────────────────────────────────────────────────────────────
+
+  /**
+   * Проверяет все тела на попадание в лузу.
+   * Вызывать после каждого physics step.
+   * При попадании вызывает this.onPocketEnter(entry).
+   */
+  checkPockets() {
+    for (const entry of this.physicsBodies) {
+      const { mesh, body } = entry;
+      if (!body.isEnabled()) continue;
+
+      const pos = body.translation();
+
+      // ── Финальное удаление ────────────────────────────────────────────
+      if (pos.y < PHYSICS.pocketFallDepth) {
+        if (this.onPocketEnter) this.onPocketEnter(entry);
+        continue;
+      }
+
+      // ── Засасывание в лузу ────────────────────────────────────────────
+      let nearestCenter = null;
+      let nearestDist = Infinity;
+
+      for (const center of this.pocketCenters) {
+        const dx = pos.x - center.x;
+        const dz = pos.z - center.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < PHYSICS.pocketRadius * 0.8 && dist < nearestDist) {
+          nearestCenter = center;
+          nearestDist = dist;
+        }
+      }
+
+      const collider = body.collider(0);
+      if (!collider) continue;
+
+      if (nearestCenter) {
+        if (!mesh.userData.isFalling) {
+          collider.setCollisionGroups(MASK_COIN_FALLING);
+          body.wakeUp();
+          mesh.userData.isFalling = true;
+        }
+
+        // Горизонтальное торможение
+        const vel = body.linvel();
+        body.setLinvel({ x: vel.x * PHYSICS.pocketDragFactor, y: vel.y, z: vel.z * PHYSICS.pocketDragFactor }, true);
+
+        // Притяжение к центру
+        if (nearestDist > 0.001) {
+          const pullStr = PHYSICS.pocketPullForce * PHYSICS.fixedTimeStep;
+          body.applyImpulse({
+            x: ((nearestCenter.x - pos.x) / nearestDist) * pullStr,
+            y: 0,
+            z: ((nearestCenter.z - pos.z) / nearestDist) * pullStr,
+          }, true);
+        }
+      } else {
+        if (mesh.userData.isFalling) {
+          collider.setCollisionGroups(MASK_COIN_NORMAL);
+          mesh.userData.isFalling = false;
+        }
+      }
+    }
+  }
+
+  // ─── Импульс ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Применить импульс к битку.
+   * @param {RAPIER.RigidBody} body
+   * @param {{x:number, y:number, z:number}} impulse
+   */
+  applyImpulse(body, impulse) {
+    body.applyImpulse({ x: impulse.x, y: 0, z: impulse.z }, true);
+  }
+
+  /** Разбудить все тела */
+  wakeAll() {
+    for (const entry of this.physicsBodies) {
+      if (entry.body.isEnabled()) entry.body.wakeUp();
+    }
+  }
+
+  // ─── Утилиты ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Проверяет, остановились ли все динамические тела.
+   * @returns {boolean}
+   */
+  areAllSleeping() {
+    for (const entry of this.physicsBodies) {
+      if (!entry.body.isEnabled()) continue;
+      if (entry.body.bodyType() !== RAPIER.RigidBodyType.Dynamic) continue;
+
+      const v = entry.body.linvel();
+      const av = entry.body.angvel();
+      const sq = v.x * v.x + v.y * v.y + v.z * v.z;
+      const asq = av.x * av.x + av.y * av.y + av.z * av.z;
+
+      if (sq > 0.0001 || asq > 0.0001) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Прогреть физику (усадка фишек на стол после создания).
+   * @param {number} steps
+   */
+  warmup(steps = 240) {
+    for (let i = 0; i < steps; i++) {
+      this.world.step();
+    }
+  }
+
+  /** Перевести биток из kinematic в dynamic */
+  makeStrikerDynamic(strikerEntry, position) {
+    const body = strikerEntry.body;
+    body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+    body.setTranslation(position, true);
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    body.wakeUp();
+  }
+
+  /** Перевести биток обратно в kinematic (начало хода) */
+  makeStrikerKinematic(strikerEntry, position) {
+    const body = strikerEntry.body;
+    body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+    body.setTranslation(position, true);
+    body.setNextKinematicTranslation(position, true);
+  }
+
+  /** Восстановить биток после лузы */
+  restoreStriker(strikerEntry, position) {
+    const body = strikerEntry.body;
+    body.setEnabled(true);
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    body.sleep();
+
+    const collider = body.collider(0);
+    if (collider) collider.setCollisionGroups(MASK_COIN_NORMAL);
+
+    this.makeStrikerKinematic(strikerEntry, position);
+  }
+
+  dispose() {
+    this.physicsBodies = [];
+    this.pocketCenters = [];
+    if (this.world) {
+      this.world.free?.();
+      this.world = null;
+    }
+  }
+}

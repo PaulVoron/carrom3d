@@ -4,14 +4,15 @@
 
 export const GUI_MODE_LIGHTING = true;
 export const DEV_MODE_HELPERS = false;
+export const DEBUG_MODE = true; // Визуальный дебаг физических коллизий и триггерных зон луз
 
 export const MODEL_CENTER_POSITION = 0;
-export const START_CAMERA_POSITION = [0.005, 0.428, 1.213];
-export const ADD_FLOOR = true;
+export const START_CAMERA_POSITION = [0.005, 0.428, 1.113];
+export const ADD_FLOOR = false;
 
 export const CONTROL_TARGET_POSITION_Y = 0;
 export const CONTROLS_ENABLE_PAN = true;
-export const CONTROLS_FIX_VERTICAL_PAN = false; // фіксує панування по вертикалі
+export const CONTROLS_FIX_VERTICAL_PAN = true; // фіксує панування по вертикалі
 
 export const BACKGROUND_COLOR = 0xffffff; // 0xffffff (default);
 export const SHADOW_TRANSPARENCY = 0.125;

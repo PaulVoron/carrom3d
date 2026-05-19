@@ -1,0 +1,25 @@
+// src/styles/global.scss
+@use './variables' as *;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: $color-bg;
+  font-family: $font-primary;
+  color: $color-text-primary;
+}
+
+// Убираем выделение текста по умолчанию для игрового UI
+user-select {
+  user-select: none;
+}
+
+// Фикс z-index для панели dat.GUI, чтобы она была поверх React UI
+.dg.ac {
+  z-index: 9999 !important;
+}

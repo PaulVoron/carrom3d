@@ -39,7 +39,7 @@ import {
   CONTROLS_FIX_VERTICAL_PAN,
   ENABLE_ASSEMBLY_ANIMATION,
   FIT_CAMERA_TO_OBJECT,
-} from './settings.js';
+} from '../src/engine/3d-scene-settings.js';
 
 const isNewThreeJs = parseInt(THREE.REVISION) >= 150;
 
@@ -96,7 +96,7 @@ function isWeakDevice() {
         (/Iris/i.test(renderer) && !/Xe/i.test(renderer));
       if (isLegacyIntel) return true;
     }
-  // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
   } catch (e) { return false; }
   return false;
 }
@@ -215,9 +215,9 @@ function initLights() {
     dirLight.shadow.mapSize = new THREE.Vector2(shadowSize, shadowSize);
     dirLight.shadow.radius = isLowPerformance ? 10 : 20;
     dirLight.shadow.blurSamples = isLowPerformance ? 5 : 20;
-    
+
     initialLightOffset = new THREE.Vector3().subVectors(dirLight.position, dirLight.target.position);
-    
+
     scene.add(dirLight);
     scene.add(dirLight.target);
 
@@ -322,7 +322,7 @@ export function updateEnvMap(path, intensity, angle = ENVIRONMENT_MAP_ANGLE, fli
     texture.dispose();
     pmremGenerator.dispose();
     requestRender();
-  }, undefined, function(err) {
+  }, undefined, function (err) {
     console.warn('Failed to load HDR environment map:', path, err);
     // Fallback: simple hemispheric light if env map fails
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
@@ -346,7 +346,7 @@ function initControls() {
   controls.minAzimuthAngle = -Infinity;
   controls.maxAzimuthAngle = Infinity;
   // controls.enableDamping = !isLowPerformance;
-  controls.enableDamping =true;
+  controls.enableDamping = true;
   controls.enablePan = CONTROLS_ENABLE_PAN;
   controls.dampingFactor = 0.25;
   controls.autoRotateSpeed = -0.5;
@@ -389,7 +389,7 @@ function initControls() {
 
 function initAnimate(onBeforeRender) {
   let lastTime = performance.now();
-  
+
   function animate(time) {
     requestAnimationFrame(animate);
     if (document.hidden) return;
@@ -403,7 +403,7 @@ function initAnimate(onBeforeRender) {
 
     if (delta >= currentInterval) {
       lastTime = time - (delta % currentInterval);
-      
+
       if (resizeRendererToDisplaySize(renderer)) {
         camera.aspect = canvas.clientWidth / canvas.clientHeight;
         camera.updateProjectionMatrix();
@@ -515,14 +515,14 @@ function processLoadedModel(model) {
   model.position.y = MODEL_CENTER_POSITION;
 
   model.updateMatrixWorld(true);
-  
+
   const boundingBox = new THREE.Box3().setFromObject(model);
   const size = boundingBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
 
   updateShadowCamera([model]);
 
- // ------------------------------------------------------------
+  // ------------------------------------------------------------
   if (camera && controls && FIT_CAMERA_TO_OBJECT) {
     fitCameraToObject(camera, model, controls, true);
   }
@@ -530,7 +530,7 @@ function processLoadedModel(model) {
   if (ENABLE_ASSEMBLY_ANIMATION && window.gsap) {
     assembleModelAnimation(model, maxDim);
   }
-  
+
   console.log("🚀 ~ scene ~ 🚀:", scene);
   console.log("------------------------");
   console.log("🚀 ~ model ~ 🚀:", model);
@@ -627,7 +627,7 @@ function fitCameraToObject(camera, object, controls, animated = false) {
   }
 
   cameraDistance *= 1.2;
-  const direction = new THREE.Vector3(1, 0, 1.5).normalize(); 
+  const direction = new THREE.Vector3(1, 0, 1.5).normalize();
   const newPos = direction.multiplyScalar(cameraDistance).add(center);
 
   if (size.y > 1.5) {
@@ -642,15 +642,15 @@ function fitCameraToObject(camera, object, controls, animated = false) {
 
   if (window.gsap && animated) {
     controls.enabled = false;
-    
+
     window.gsap.to(camera.position, {
       x: newPos.x, y: newPos.y, z: newPos.z,
       duration: 2, ease: "power2.inOut",
       onUpdate: () => {
-        controls.update(); 
-        requestRender(); 
+        controls.update();
+        requestRender();
       },
-       onComplete: () => {
+      onComplete: () => {
         controls.enabled = true;
         controls.update();
         requestRender();
@@ -713,7 +713,7 @@ function assembleModelAnimation(model, maxDim) {
     onComplete: () => {
       model.updateMatrixWorld(true);
       updateShadowCamera([model]);
-      requestDelayedRender(); 
+      requestDelayedRender();
     }
   });
 }
@@ -729,7 +729,7 @@ function initGuiMode() {
     toneMappingExposure: TONE_MAPPING_EXPOSURE,
     pointLightIntensity: POINTLIGHT_INTENSITY,
     directionalLightIntensity: DIRLIGHT_INTENSITY,
-    
+
     dirLightPosX: 0,
     dirLightPosY: 12,
     dirLightPosZ: 0.000001,
@@ -757,7 +757,7 @@ function initGuiMode() {
   settings.toneMappingExposure = getParam('exposure', defaultSettings.toneMappingExposure);
   settings.pointLightIntensity = getParam('pointInt', defaultSettings.pointLightIntensity);
   settings.directionalLightIntensity = getParam('dirInt', defaultSettings.directionalLightIntensity);
-  
+
   settings.dirLightPosX = getParam('dirX', defaultSettings.dirLightPosX);
   settings.dirLightPosY = getParam('dirY', defaultSettings.dirLightPosY);
   settings.dirLightPosZ = getParam('dirZ', defaultSettings.dirLightPosZ);
@@ -772,9 +772,9 @@ function initGuiMode() {
   if (renderer) renderer.toneMappingExposure = settings.toneMappingExposure;
   if (pointLight) { pointLight.intensity = settings.pointLightIntensity; pointLight2.intensity = settings.pointLightIntensity; }
   if (ambientLight) ambientLight.intensity = settings.ambientLightIntensity;
-  
-  if (dirLight) { 
-    dirLight.intensity = settings.directionalLightIntensity; 
+
+  if (dirLight) {
+    dirLight.intensity = settings.directionalLightIntensity;
     initialLightOffset.set(settings.dirLightPosX, settings.dirLightPosY, settings.dirLightPosZ);
     dirLight.position.copy(dirLight.target.position).add(initialLightOffset);
   }
@@ -794,7 +794,7 @@ function initGuiMode() {
     params.set('exposure', settings.toneMappingExposure);
     params.set('pointInt', settings.pointLightIntensity);
     params.set('dirInt', settings.directionalLightIntensity);
-    
+
     params.set('dirX', settings.dirLightPosX);
     params.set('dirY', settings.dirLightPosY);
     params.set('dirZ', settings.dirLightPosZ);
@@ -823,7 +823,7 @@ function initGuiMode() {
 
   if (ADD_DIRLIGHT && dirLight) {
     const dirFolder = gui.addFolder('Directional Light');
-    
+
     dirFolder.add(settings, 'directionalLightIntensity', 0, 15, 0.1).name('Intensity').onChange((value) => {
       dirLight.intensity = value;
       requestRender();
@@ -887,7 +887,7 @@ function initGuiMode() {
   const resetSettings = {
     reset: () => {
       Object.assign(settings, defaultSettings);
-      
+
       if (gui.__controllers) { gui.__controllers.forEach(c => c.updateDisplay()); }
       if (gui.__folders) {
         Object.values(gui.__folders).forEach(folder => {
@@ -897,13 +897,13 @@ function initGuiMode() {
 
       if (renderer) renderer.toneMappingExposure = settings.toneMappingExposure;
       if (pointLight) { pointLight.intensity = settings.pointLightIntensity; pointLight2.intensity = settings.pointLightIntensity; }
-      
-      if (dirLight) { 
-        dirLight.intensity = settings.directionalLightIntensity; 
+
+      if (dirLight) {
+        dirLight.intensity = settings.directionalLightIntensity;
         initialLightOffset.set(settings.dirLightPosX, settings.dirLightPosY, settings.dirLightPosZ);
         dirLight.position.copy(dirLight.target.position).add(initialLightOffset);
       }
-      
+
       if (ambientLight) ambientLight.intensity = settings.ambientLightIntensity;
       if (ENVIRONMENT_MAP) {
         if (isNewThreeJs) scene.environmentIntensity = settings.environmentMapIntensity;
