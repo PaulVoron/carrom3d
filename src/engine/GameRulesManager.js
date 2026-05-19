@@ -30,9 +30,6 @@ export class GameRulesManager {
     this.strikerSpawnY = 0;
     this.strikerRadius = 0;
     this.coinRadius = 0;
-
-    /** Линия прицеливания (THREE.ArrowHelper) */
-    this.aimLine = null;
   }
 
   // ─── Инициализация ──────────────────────────────────────────────────────────
@@ -42,20 +39,6 @@ export class GameRulesManager {
     this.strikerSpawnY = spawnY;
     this.strikerRadius = strikerRadius;
     this.coinRadius = coinRadius;
-  }
-
-  setupAimLine(THREE) {
-    const { ArrowHelper, Vector3 } = THREE;
-    this.aimLine = new ArrowHelper(
-      new Vector3(0, 0, -1),
-      new Vector3(0, 0, 0),
-      0.1,
-      0xff0000,
-      0.02,
-      0.01
-    );
-    this.aimLine.visible = false;
-    this.render.scene.add(this.aimLine);
   }
 
   // ─── RAF-вызов ───────────────────────────────────────────────────────────────
@@ -68,19 +51,32 @@ export class GameRulesManager {
     const phase = useGameStore.getState().gamePhase;
 
     // ── Визуал прицеливания ──────────────────────────────────────────────
-    if (phase === 'AIMING' && this.aimLine && this.strikerEntry) {
+    if (phase === 'AIMING' && this.render.aimBar && this.strikerEntry) {
       const imp = this.input.currentImpulse;
       if (imp.lengthSq() > 0.00001) {
-        this.aimLine.visible = true;
-        this.aimLine.position.copy(this.strikerEntry.mesh.position);
-        this.aimLine.position.y += 0.001;
-        this.aimLine.setDirection(imp.clone().normalize());
-        this.aimLine.setLength(imp.length() * 2);
+        this.render.aimBar.visible = true;
+        this.render.aimBar.position.copy(this.strikerEntry.mesh.position);
+        this.render.aimBar.position.y = 0; // Фиксируем высоту над столом для исключения Z-fighting
+
+        // Направляем полосу в сторону удара
+        this.render.aimBar.rotation.y = Math.atan2(imp.x, imp.z);
+
+        // Сила натяжения (расстояние оттяжки)
+        const pullDistance = imp.length();
+        const ratio = Math.min(1.0, pullDistance / PHYSICS.maxPullDistance);
+
+        // Растет вперед
+        this.render.aimBarMesh.scale.y = pullDistance * 2.0;
+
+        // Расширяется в стороны (максимум до диаметра битка)
+        const minWidth = 0.01;
+        const maxWidth = PHYSICS.strikerDia;
+        this.render.aimBarMesh.scale.x = minWidth + ratio * (maxWidth - minWidth);
       } else {
-        this.aimLine.visible = false;
+        this.render.aimBar.visible = false;
       }
-    } else if (this.aimLine) {
-      this.aimLine.visible = false;
+    } else if (this.render.aimBar) {
+      this.render.aimBar.visible = false;
     }
 
     // ── Проверка окончания хода ──────────────────────────────────────────
@@ -175,15 +171,15 @@ export class GameRulesManager {
 
   _validateInitialPlacement(player) {
     const z = player === 1 ? PLAYER_1_LINE_Z : PLAYER_2_LINE_Z;
-    const hasOverlap = this.input.checkPlacementOverlap(
+    const isValid = this.input.validatePlacement(
       0, z,
       this.physics.physicsBodies,
       this.strikerEntry,
       this.strikerRadius,
       this.coinRadius
     );
-    useGameStore.getState().setPlacementBlocked(hasOverlap);
-    this._setStrikerOverlapVisual(hasOverlap);
+    useGameStore.getState().setPlacementBlocked(!isValid);
+    this._setStrikerOverlapVisual(!isValid);
   }
 
   // ─── Подтверждение расстановки ───────────────────────────────────────────────
@@ -226,15 +222,15 @@ export class GameRulesManager {
     );
     this.strikerEntry.mesh.position.set(x, this.strikerSpawnY, z);
 
-    const hasOverlap = this.input.checkPlacementOverlap(
+    const isValid = this.input.validatePlacement(
       x, z,
       this.physics.physicsBodies,
       this.strikerEntry,
       this.strikerRadius,
       this.coinRadius
     );
-    useGameStore.getState().setPlacementBlocked(hasOverlap);
-    this._setStrikerOverlapVisual(hasOverlap);
+    useGameStore.getState().setPlacementBlocked(!isValid);
+    this._setStrikerOverlapVisual(!isValid);
   }
 
   // ─── Визуальная обратная связь ───────────────────────────────────────────────

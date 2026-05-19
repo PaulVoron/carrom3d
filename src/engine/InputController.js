@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { PHYSICS } from './PhysicsEngine.js';
+import { useGameStore } from '../store/useGameStore.js';
 
 export const PLAYER_1_LINE_Z  =  0.25;
 export const PLAYER_2_LINE_Z  = -0.25;
@@ -31,6 +32,7 @@ export class InputController {
     /** Коллбэки (устанавливает GameOrchestrator) */
     this.onStrikerDrag = null;
     this.onShoot = null;
+    this.onConfirmPlacement = null;
   }
 
   attach(canvas, camera, controls) {
@@ -40,6 +42,7 @@ export class InputController {
     canvas.addEventListener('pointerdown', this._onDown);
     canvas.addEventListener('pointermove', this._onMove);
     canvas.addEventListener('pointerup',   this._onUp);
+    window.addEventListener('keydown', this._onKeyDown);
   }
 
   detach() {
@@ -47,6 +50,7 @@ export class InputController {
     this._canvas.removeEventListener('pointerdown', this._onDown);
     this._canvas.removeEventListener('pointermove', this._onMove);
     this._canvas.removeEventListener('pointerup',   this._onUp);
+    window.removeEventListener('keydown', this._onKeyDown);
   }
 
   setStrikerEntry(entry, strikerSpawnY) {
@@ -108,22 +112,49 @@ export class InputController {
     }
   };
 
+  _onKeyDown = (event) => {
+    if (event.code === 'Space') {
+      event.preventDefault();
+      const state = useGameStore.getState();
+      if (this._gamePhase === 'PLACEMENT' && !state.isPlacementBlocked) {
+        if (this.onConfirmPlacement) {
+          this.onConfirmPlacement();
+        }
+      }
+    }
+  };
+
   _updateNDC(event) {
     const rect = this._canvas.getBoundingClientRect();
     this._pointerNDC.x =  ((event.clientX - rect.left) / rect.width)  * 2 - 1;
     this._pointerNDC.y = -((event.clientY - rect.top)  / rect.height) * 2 + 1;
   }
 
-  checkPlacementOverlap(strikerX, strikerZ, physicsBodies, strikerEntry, strikerRadius, coinRadius) {
+  validatePlacement(strikerX, strikerZ, physicsBodies, strikerEntry, strikerRadius, coinRadius) {
+    // 1. Проверка коллизий с другими фишками
     const minDist = strikerRadius + coinRadius;
     for (const entry of physicsBodies) {
       if (entry === strikerEntry || !entry.body.isEnabled()) continue;
       const p = entry.body.translation();
       const dx = strikerX - p.x;
       const dz = strikerZ - p.z;
-      if ((dx * dx + dz * dz) < (minDist * minDist)) return true;
+      if ((dx * dx + dz * dz) < (minDist * minDist)) {
+        return false; // Есть коллизия с фишкой -> невалидно
+      }
     }
-    return false;
+
+    // 2. Проверка базовых кругов на концах базовой линии
+    const minX = PLAYER_LINE_MIN_X;
+    const maxX = PLAYER_LINE_MAX_X;
+
+    const isAtMinCenter = Math.abs(strikerX - minX) < 0.001;
+    const isAtMaxCenter = Math.abs(strikerX - maxX) < 0.001;
+
+    const noTouchMinLimit = minX + coinRadius + strikerRadius;
+    const noTouchMaxLimit = maxX - coinRadius - strikerRadius;
+    const isInNoTouchZone = (strikerX >= noTouchMinLimit && strikerX <= noTouchMaxLimit);
+
+    return (isAtMinCenter || isAtMaxCenter || isInNoTouchZone);
   }
 
   get isAiming()   { return this._isAiming; }

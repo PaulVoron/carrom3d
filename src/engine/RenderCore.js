@@ -106,6 +106,38 @@ export class RenderCore {
     if (DEV_MODE_HELPERS) {
       this.scene.add(new THREE.AxesHelper(10));
     }
+
+    // Создаем прогрессивный треугольник прицеливания (BufferGeometry) красного цвета
+    const group = new THREE.Group();
+    const vertices = new Float32Array([
+      -0.5,  0.0, 0.0, // Левый нижний угол (основание)
+       0.5,  0.0, 0.0, // Правый нижний угол (основание)
+       0.0, -1.0, 0.0  // Верхний угол (острие)
+    ]);
+    const uvs = new Float32Array([
+      0.0, 0.0,
+      1.0, 0.0,
+      0.5, 1.0
+    ]);
+    const barGeo = new THREE.BufferGeometry();
+    barGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    barGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    barGeo.computeVertexNormals();
+
+    const barMat = new THREE.MeshBasicMaterial({
+      color: 0xff0000,
+      transparent: true,
+      opacity: 0.2, // Еще прозрачнее (было 0.6)
+      side: THREE.DoubleSide
+    });
+    const barMesh = new THREE.Mesh(barGeo, barMat);
+    barMesh.rotation.x = -Math.PI / 2; // кладем на стол
+    group.add(barMesh);
+
+    this.aimBar = group;
+    this.aimBarMesh = barMesh;
+    this.aimBar.visible = false;
+    this.scene.add(this.aimBar);
   }
 
   _initCamera() {
@@ -390,6 +422,10 @@ export class RenderCore {
     if (this.gui) {
       this.gui.destroy();
       this.gui = null;
+    }
+    if (this.aimBarMesh) {
+      this.aimBarMesh.geometry.dispose();
+      this.aimBarMesh.material.dispose();
     }
     this.renderer?.dispose();
     this.controls?.dispose();

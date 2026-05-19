@@ -47,15 +47,12 @@ export class GameOrchestrator {
     this.physics.warmup(240);
     this._syncAfterWarmup();
 
-    // 6. Линия прицеливания
-    this.rules.setupAimLine(THREE);
-
-    // 7. Привязываем инпут
+    // 6. Привязываем инпут
     this.input.attach(canvas, this.render.camera, this.render.controls);
     this.input.setStrikerEntry(this.rules.strikerEntry, this.rules.strikerSpawnY);
     this.input.setGamePhase('PLACEMENT');
 
-    // 8. Коллбэки инпута → движок правил
+    // 7. Коллбэки инпута → движок правил
     this.input.onStrikerDrag = (x) => {
       const player = useGameStore.getState().currentPlayer;
       this.rules.onStrikerDrag(x, player);
@@ -63,16 +60,19 @@ export class GameOrchestrator {
     this.input.onShoot = (impulse) => {
       this.rules.shoot(impulse);
     };
+    this.input.onConfirmPlacement = () => {
+      this.confirmPlacement();
+    };
 
-    // 9. Коллбэк лузы → правила
+    // 8. Коллбэк лузы → правила
     this.physics.onPocketEnter = (entry) => {
       this.rules.handlePocketResult(entry);
     };
 
-    // 10. Сигнализируем React, что готово
+    // 9. Сигнализируем React, что готово
     useGameStore.getState().setReady(true);
 
-    // 11. Начальная валидация позиции
+    // 10. Начальная валидация позиции
     this.rules._validateInitialPlacement(1);
   }
 
