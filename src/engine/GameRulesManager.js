@@ -8,7 +8,7 @@
 import gsap from 'gsap';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { useGameStore, recordPocket } from '../store/useGameStore.js';
-import { PHYSICS } from './PhysicsEngine.js';
+import { PHYSICS, MASK_COIN_NORMAL } from './PhysicsEngine.js';
 import { PLAYER_1_LINE_Z, PLAYER_2_LINE_Z } from './InputController.js';
 import { START_CAMERA_POSITION } from './3d-scene-settings.js';
 
@@ -29,7 +29,12 @@ export class GameRulesManager {
     this.strikerEntry = null;
     this.strikerSpawnY = 0;
     this.strikerRadius = 0;
+    this.strikerRadius = 0;
     this.coinRadius = 0;
+
+    this._strikerHitSomething = false;
+    this._lastPhase = 'PLACEMENT';
+    this._lastPlayerCamera = null;
   }
 
   // ─── Инициализация ──────────────────────────────────────────────────────────
@@ -39,16 +44,53 @@ export class GameRulesManager {
     this.strikerSpawnY = spawnY;
     this.strikerRadius = strikerRadius;
     this.coinRadius = coinRadius;
+
+    // Сразу выставляем биток на линию текущего игрока после загрузки
+    const currentPlayer = useGameStore.getState().currentPlayer;
+    const resetPos = {
+      x: 0,
+      y: spawnY,
+      z: currentPlayer === 1 ? PLAYER_1_LINE_Z : PLAYER_2_LINE_Z,
+    };
+    this.physics.restoreStriker(entry, resetPos);
+    entry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
+    entry.mesh.quaternion.set(0, 0, 0, 1);
   }
 
   // ─── RAF-вызов ───────────────────────────────────────────────────────────────
 
-  /**
-   * Вызывается каждый кадр из GameOrchestrator (RAF).
-   * Обновляет визуал прицеливания и логику завершения хода.
-   */
   tick() {
     const phase = useGameStore.getState().gamePhase;
+    const currentPlayer = useGameStore.getState().currentPlayer;
+
+    // ─── Сброс флагов при смене фазы ───────────────────────────────────────────
+    if (this._lastPhase !== phase) {
+      if (phase === 'MOVING') {
+        this._strikerHitSomething = false;
+      }
+      this._lastPhase = phase;
+    }
+
+    // ─── Инициализация камеры и битка (например, после жребия) ──────────────
+    if (phase === 'PLACEMENT') {
+      if (this._lastPlayerCamera !== currentPlayer) {
+        this._rotateCameraForPlayer(currentPlayer);
+        this._lastPlayerCamera = currentPlayer;
+
+        if (this.strikerEntry) {
+          const resetPos = {
+            x: 0,
+            y: this.strikerSpawnY,
+            z: currentPlayer === 1 ? PLAYER_1_LINE_Z : PLAYER_2_LINE_Z,
+          };
+          this.physics.restoreStriker(this.strikerEntry, resetPos);
+          this.strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
+          this.strikerEntry.mesh.quaternion.set(0, 0, 0, 1);
+          
+          this._validateInitialPlacement(currentPlayer);
+        }
+      }
+    }
 
     // ── Визуал прицеливания ──────────────────────────────────────────────
     if (phase === 'AIMING' && this.render.aimBar && this.strikerEntry) {
@@ -79,8 +121,24 @@ export class GameRulesManager {
       this.render.aimBar.visible = false;
     }
 
-    // ── Проверка окончания хода ──────────────────────────────────────────
+    // ── Проверка окончания хода и попаданий ──────────────────────────────
     if (phase === 'MOVING') {
+      // Проверка на попадание по фишке
+      if (!this._strikerHitSomething) {
+        for (const entry of this.physics.physicsBodies) {
+          if (entry.mesh.userData.type === 'striker') continue;
+          if (!entry.body.isEnabled()) continue;
+          
+          const v = entry.body.linvel();
+          const sq = v.x * v.x + v.y * v.y + v.z * v.z;
+          if (sq > 0.0001) {
+            this._strikerHitSomething = true;
+            console.log('💥 Биток коснулся фишки!');
+            break;
+          }
+        }
+      }
+
       this._checkSleepFrameCount++;
       if (this._checkSleepFrameCount % 30 === 0) {
         if (this.physics.areAllSleeping()) {
@@ -118,14 +176,27 @@ export class GameRulesManager {
       mesh.visible = false;
       console.log('👑 Королева забита!');
     } else if (type === 'white' || type === 'black') {
-      const ownColor = currentPlayer === 1 ? 'white' : 'black';
-      recordPocket(type === ownColor ? 'own' : 'opponent');
+      recordPocket(type);
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       body.sleep();
       body.setEnabled(false);
       mesh.visible = false;
       console.log(`🎯 ${type} фишка забита игроком ${currentPlayer}`);
     }
+  }
+
+  handleOutOfBounds(entry) {
+    const type = entry.mesh.userData.type;
+    const body = entry.body;
+    const mesh = entry.mesh;
+
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.sleep();
+    body.setEnabled(false);
+    mesh.visible = false;
+    
+    console.log(`🚀 ${type} улетел за борт!`);
+    useGameStore.getState().recordOutOfBounds(type);
   }
 
   // ─── Завершение хода ─────────────────────────────────────────────────────────
@@ -135,38 +206,141 @@ export class GameRulesManager {
     this._checkSleepFrameCount = 0;
 
     // Вычисляем итог хода (обновляет стор атомарно)
-    const nextPlayer = useGameStore.getState().evaluateTurn();
+    const { nextPlayer, returns } = useGameStore.getState().evaluateTurn({ 
+      hitSomething: this._strikerHitSomething 
+    });
 
-    // Поворачиваем камеру к следующему игроку
-    this._rotateCameraForPlayer(nextPlayer);
+    this._processReturns(returns, () => {
+      // Поворачиваем камеру к следующему игроку после выставления штрафов
+      if (this._lastPlayerCamera !== nextPlayer) {
+        this._rotateCameraForPlayer(nextPlayer);
+        this._lastPlayerCamera = nextPlayer;
+      }
+      // Восстанавливаем биток
+      if (this.strikerEntry) {
+        if (this.strikerEntry.mesh.userData.pocketed || !this.strikerEntry.body.isEnabled()) {
+          console.log('🔄 Биток восстановлен из лузы.');
+          this.strikerEntry.mesh.visible = true;
+          this.strikerEntry.mesh.userData.pocketed = false;
+        }
 
-    // Восстанавливаем биток
-    if (this.strikerEntry) {
-      if (this.strikerEntry.mesh.userData.pocketed || !this.strikerEntry.body.isEnabled()) {
-        console.log('🔄 Биток восстановлен из лузы.');
-        this.strikerEntry.mesh.visible = true;
-        this.strikerEntry.mesh.userData.pocketed = false;
+        const resetPos = {
+          x: 0,
+          y: this.strikerSpawnY,
+          z: nextPlayer === 1 ? PLAYER_1_LINE_Z : PLAYER_2_LINE_Z,
+        };
+
+        this.physics.restoreStriker(this.strikerEntry, resetPos);
+        this.strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
+        this.strikerEntry.mesh.quaternion.set(0, 0, 0, 1);
       }
 
-      const resetPos = {
-        x: 0,
-        y: this.strikerSpawnY,
-        z: nextPlayer === 1 ? PLAYER_1_LINE_Z : PLAYER_2_LINE_Z,
-      };
+      // Сбрасываем аккумулятор физики
+      this.physics.resetAccumulator();
 
-      this.physics.restoreStriker(this.strikerEntry, resetPos);
-      this.strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
-      this.strikerEntry.mesh.quaternion.set(0, 0, 0, 1);
+      // Стор уже переведён в PLACEMENT внутри evaluateTurn()
+      this.input.setGamePhase('PLACEMENT');
+
+      // Запускаем начальную валидацию
+      this._validateInitialPlacement(nextPlayer);
+    });
+  }
+
+  _processReturns(returns, onComplete) {
+    if (!returns || returns.length === 0) {
+      onComplete();
+      return;
     }
 
-    // Сбрасываем аккумулятор физики
-    this.physics.resetAccumulator();
+    let completed = 0;
+    let totalAnims = 0;
 
-    // Стор уже переведён в PLACEMENT внутри evaluateTurn()
-    this.input.setGamePhase('PLACEMENT');
+    const checkDone = () => {
+      completed++;
+      if (completed >= totalAnims) {
+        onComplete();
+      }
+    };
 
-    // Запускаем начальную валидацию
-    this._validateInitialPlacement(nextPlayer);
+    returns.forEach(ret => {
+      if (ret.type === 'queen') {
+        const queenEntry = this.physics.physicsBodies.find(e => e.mesh.userData.type === 'queen');
+        if (queenEntry) {
+          totalAnims++;
+          this._animateReturn(queenEntry, true, checkDone);
+        }
+      } else if (ret.type === 'coin') {
+        const color = ret.color;
+        let count = ret.count;
+        const availableCoins = this.physics.physicsBodies.filter(e => 
+          e.mesh.userData.type === color && !e.body.isEnabled() && !e.mesh.visible
+        );
+        for (let i = 0; i < Math.min(count, availableCoins.length); i++) {
+          totalAnims++;
+          this._animateReturn(availableCoins[i], false, checkDone);
+        }
+      }
+    });
+
+    if (totalAnims === 0) {
+      onComplete();
+    }
+  }
+
+  _animateReturn(entry, isQueen, onComplete) {
+    const pos = this.physics.getFreePosition(isQueen, this.coinRadius);
+    
+    entry.body.setEnabled(false);
+    entry.mesh.visible = true;
+    entry.mesh.quaternion.set(0, 0, 0, 1); // Сбрасываем поворот
+    entry.mesh.position.set(pos.x, 0.05, pos.z); // Ниже левитация (было 0.15)
+    
+    const originalMaterials = [];
+    entry.mesh.traverse(c => {
+      if (c.isMesh) {
+        originalMaterials.push({ mesh: c, mat: c.material });
+        c.material = c.material.clone();
+        c.material.transparent = true;
+        c.material.opacity = 0;
+      }
+    });
+
+    const tl = gsap.timeline({
+      onComplete: () => {
+        originalMaterials.forEach(({ mesh, mat }) => {
+          mesh.material.dispose();
+          mesh.material = mat;
+        });
+
+        entry.body.setTranslation({ x: pos.x, y: 0.005, z: pos.z }, true);
+        entry.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true); // Сбрасываем физический поворот
+        entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        entry.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+        
+        const collider = entry.body.collider(0);
+        if (collider) collider.setCollisionGroups(MASK_COIN_NORMAL);
+
+        entry.body.setEnabled(true);
+        entry.body.wakeUp();
+
+        onComplete();
+      }
+    });
+
+    const mats = originalMaterials.map(item => item.mesh.material);
+    tl.to(mats, {
+      opacity: 1,
+      duration: 0.1,
+      yoyo: true,
+      repeat: 9
+    });
+    
+    tl.to(entry.mesh.position, {
+      y: 0.005,
+      duration: 0.8,
+      ease: 'bounce.out'
+    });
   }
 
   _validateInitialPlacement(player) {

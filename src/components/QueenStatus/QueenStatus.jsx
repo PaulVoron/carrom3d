@@ -4,6 +4,7 @@ import styles from './QueenStatus.module.scss';
 
 export const QueenStatus = () => {
   const queenState = useGameStore((state) => state.queenState);
+  const queenCoveredBy = useGameStore((state) => state.queenCoveredBy);
 
   let statusText = '';
   let statusClass = '';
@@ -18,7 +19,7 @@ export const QueenStatus = () => {
       statusClass = styles.pocketedUncovered;
       break;
     case 'covered':
-      statusText = 'Закрыта';
+      statusText = queenCoveredBy ? `Закрыта Игр. ${queenCoveredBy}` : 'Закрыта';
       statusClass = styles.covered;
       break;
     default:

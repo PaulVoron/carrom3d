@@ -16,28 +16,28 @@ export const PHYSICS = {
   friction: 0.045,          // Коэффициент трения фишек о поверхность стола
   restitution: 0.7,        // Упругость фишек (коэффициент отскока при соударении друг с другом)
   boardRestitution: 0.6,   // Упругость бортов стола при отскоке фишек
- 
+
   coinDia: 0.0318,         // Диаметр фишки (31.8 мм)
   coinHeight: 0.008,       // Высота фишки (8 мм)
   massCoin: 0.0055,        // Масса обычной фишки в кг
-  
+
   strikerDia: 0.0413,      // Диаметр битка (25.4 мм)
   strikerHeight: 0.008,    // Высота битка (8 мм)
   massStriker: 0.015,      // Масса битка в кг
- 
+
   maxPullDistance: 0.25,    // Максимальная дистанция оттяжки кия/мыши при прицеливании
   strikerForce: 0.5,       // Множитель силы удара по битку
   solverIterations: 17,    // Количество итераций солвера Rapier3D (выше = точнее контакты)
- 
+
   fixedTimeStep: 1 / 240,  // Фиксированный шаг симуляции (240Hz) для устранения прохождения сквозь стены
   maxSubSteps: 8,          // Предельное число подшагов физики за один кадр рендеринга
   maxCcdSubsteps: 6,       // Число подшагов CCD (Continuous Collision Detection) для быстролетящих тел
- 
+
   maxLinearSpeed: 3.0,     // Ограничение максимальной скорости фишек для стабильности физики
- 
+
   pocketRadius: 0.02275,   // Радиус триггерных зон луз
   pocketFallDepth: -0.1,   // Координата Y, ниже которой фишка считается полностью забитой
- 
+
   pocketDragFactor: 0.85,  // Множитель затухания скорости (трения) при попадании в лузу
   pocketPullForce: 0.3,    // Сила, притягивающая фишку к центру лузы (эффект провала)
 
@@ -49,14 +49,14 @@ export const PHYSICS = {
 
 // ─── Маски столкновений ───────────────────────────────────────────────────────
 
-const COL_GROUP_COIN  = 0x0001;
+const COL_GROUP_COIN = 0x0001;
 const COL_GROUP_FLOOR = 0x0002;
 const COL_GROUP_WALLS = 0x0004;
 
-export const MASK_COIN_NORMAL  = (COL_GROUP_COIN << 16) | (COL_GROUP_COIN | COL_GROUP_FLOOR | COL_GROUP_WALLS);
+export const MASK_COIN_NORMAL = (COL_GROUP_COIN << 16) | (COL_GROUP_COIN | COL_GROUP_FLOOR | COL_GROUP_WALLS);
 export const MASK_COIN_FALLING = (COL_GROUP_COIN << 16) | (COL_GROUP_COIN | COL_GROUP_WALLS);
-export const MASK_FLOOR        = (COL_GROUP_FLOOR << 16) | COL_GROUP_COIN;
-export const MASK_WALLS        = (COL_GROUP_WALLS << 16) | COL_GROUP_COIN;
+export const MASK_FLOOR = (COL_GROUP_FLOOR << 16) | COL_GROUP_COIN;
+export const MASK_WALLS = (COL_GROUP_WALLS << 16) | COL_GROUP_COIN;
 
 // ─── PhysicsEngine ────────────────────────────────────────────────────────────
 
@@ -77,6 +77,9 @@ export class PhysicsEngine {
 
     /** Коллбэк: вызывается когда объект упал в лузу */
     this.onPocketEnter = null;
+
+    /** Коллбэк: вызывается когда объект вылетел за пределы стола */
+    this.onOutOfBounds = null;
   }
 
   // ─── Инициализация ──────────────────────────────────────────────────────────
@@ -157,9 +160,9 @@ export class PhysicsEngine {
       { x: minX + pr, y: 0, z: minZ + pr },
     ];
 
-    const boardTopY     = 0.001;
-    const floorHalfH    = 0.05;
-    const floorCenterY  = boardTopY - floorHalfH;
+    const boardTopY = 0.001;
+    const floorHalfH = 0.05;
+    const floorCenterY = boardTopY - floorHalfH;
 
     const floorBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, floorCenterY, 0);
     const floorBody = this.world.createRigidBody(floorBodyDesc);
@@ -277,7 +280,11 @@ export class PhysicsEngine {
 
       // ── Финальное удаление ────────────────────────────────────────────
       if (pos.y < PHYSICS.pocketFallDepth) {
-        if (this.onPocketEnter) this.onPocketEnter(entry);
+        if (mesh.userData.isFalling) {
+          if (this.onPocketEnter) this.onPocketEnter(entry);
+        } else {
+          if (this.onOutOfBounds) this.onOutOfBounds(entry);
+        }
         continue;
       }
 
@@ -346,6 +353,63 @@ export class PhysicsEngine {
   }
 
   // ─── Утилиты ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Найти свободную позицию для возврата фишки.
+   * @param {boolean} isQueen 
+   * @param {number} coinRadius 
+   * @returns {{x: number, z: number}}
+   */
+  getFreePosition(isQueen, coinRadius) {
+    const obstacles = [];
+    for (const entry of this.physicsBodies) {
+      if (entry.body.isEnabled() || entry.mesh.visible) {
+        const type = entry.mesh.userData.type;
+        if (['striker', 'queen', 'white', 'black'].includes(type)) {
+          const r = type === 'striker' ? PHYSICS.strikerDia / 2 : PHYSICS.coinDia / 2;
+          const pos = entry.mesh.position; 
+          obstacles.push({ x: pos.x, z: pos.z, r });
+        }
+      }
+    }
+
+    const checkOverlap = (x, z) => {
+      for (const obs of obstacles) {
+        const dx = x - obs.x;
+        const dz = z - obs.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < coinRadius + obs.r + 0.002) { 
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (isQueen) {
+      if (!checkOverlap(0, 0)) return { x: 0, z: 0 };
+      let step = 0.005;
+      for (let r = step; r < 0.3; r += step) {
+        const numPoints = Math.floor((2 * Math.PI * r) / step);
+        for (let i = 0; i < numPoints; i++) {
+          const angle = (i / numPoints) * Math.PI * 2;
+          const x = Math.cos(angle) * r;
+          const z = Math.sin(angle) * r;
+          if (!checkOverlap(x, z)) return { x, z };
+        }
+      }
+      return { x: 0, z: 0 };
+    } else {
+      const maxR = 0.085 - coinRadius;
+      for (let i = 0; i < 1000; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * maxR; 
+        const x = Math.cos(angle) * r;
+        const z = Math.sin(angle) * r;
+        if (!checkOverlap(x, z)) return { x, z };
+      }
+      return { x: 0, z: 0 };
+    }
+  }
 
   /**
    * Проверяет, остановились ли все динамические тела.
