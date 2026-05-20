@@ -76,6 +76,26 @@ export class GameRulesManager {
         this._executeEndTurnReturns(data.storeState.currentPlayer, data.returns);
       }
     });
+
+    networkManager.on('CLIENT_SELECT_COLOR', (data) => {
+      const state = useGameStore.getState();
+      if (state.networkMode === 'host') {
+        state.selectPlayerColor(data.color);
+        networkManager.send('SYNC_COLOR_SELECTION', {
+          playerColors: useGameStore.getState().playerColors
+        });
+      }
+    });
+
+    networkManager.on('SYNC_COLOR_SELECTION', (data) => {
+      if (useGameStore.getState().networkMode === 'client') {
+        useGameStore.setState({
+          playerColors: data.playerColors,
+          showColorSelection: false,
+          isPlacementBlocked: false
+        });
+      }
+    });
   }
 
   // ─── Инициализация ──────────────────────────────────────────────────────────
@@ -294,7 +314,9 @@ export class GameRulesManager {
           turnEvents: storeState.turnEvents,
           gamePhase: storeState.gamePhase,
           lastStartingPlayer: storeState.lastStartingPlayer,
-          colorAssignmentAlert: storeState.colorAssignmentAlert
+          colorAssignmentAlert: storeState.colorAssignmentAlert,
+          showColorSelection: storeState.showColorSelection,
+          isPlacementBlocked: storeState.isPlacementBlocked
         }
       });
     }

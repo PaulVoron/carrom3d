@@ -6,6 +6,7 @@ import { GameOverPopup } from './components/GameOverPopup/GameOverPopup';
 import { MainMenu } from './components/MainMenu/MainMenu';
 import { useGameStore } from './store/useGameStore';
 import { ColorAlert } from './components/ColorAlert/ColorAlert';
+import { ColorSelectionPopup } from './components/ColorSelectionPopup/ColorSelectionPopup';
 import './styles/global.scss';
 
 export const App = () => {
@@ -21,6 +22,7 @@ export const App = () => {
           <ConfirmButton />
           <GameOverPopup />
           <ColorAlert />
+          <ColorSelectionPopup />
         </>
       )}
     </>

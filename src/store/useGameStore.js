@@ -77,6 +77,7 @@ export const useGameStore = create(
 
     /** Победитель (1 или 2, или null) */
     winner: null,
+    showColorSelection: false,
 
     /** Итоговый счет победителя */
     gameOverScore: 0,
@@ -131,6 +132,7 @@ export const useGameStore = create(
         state.turnEvents = initialTurnEvents();
         state.gamePhase = 'PLACEMENT';
         state.isPlacementBlocked = false;
+        state.showColorSelection = false;
       }),
 
     /** Переключить фазу игры */
@@ -190,6 +192,8 @@ export const useGameStore = create(
       draft.gamePhase = newState.gamePhase;
       draft.lastStartingPlayer = newState.lastStartingPlayer;
       draft.colorAssignmentAlert = newState.colorAssignmentAlert;
+      draft.showColorSelection = newState.showColorSelection;
+      draft.isPlacementBlocked = newState.isPlacementBlocked;
     }),
 
     // ── Ивенты хода ────────────────────────────────────────────────────────
@@ -217,6 +221,17 @@ export const useGameStore = create(
         }
       }),
 
+    /** Назначить цвет игроку */
+    selectPlayerColor: (color) =>
+      set((state) => {
+        const pKey = state.currentPlayer === 1 ? 'player1' : 'player2';
+        const oppKey = state.currentPlayer === 1 ? 'player2' : 'player1';
+        state.playerColors[pKey] = color;
+        state.playerColors[oppKey] = color === 'white' ? 'black' : 'white';
+        state.showColorSelection = false;
+        state.isPlacementBlocked = false;
+      }),
+
     /**
      * Вычислить результат хода и обновить стор.
      * Вызывается из GameRulesManager.evaluateTurn() после остановки физики.
@@ -242,7 +257,7 @@ export const useGameStore = create(
       // ─── 0. Назначение цвета ──────────────────────────────────────────────────
       let justAssignedColor = false;
       if (!newPlayerColors[pKey]) {
-        // Назначаем цвет по большинству забитых фишек за удар
+        // Назначаем цвет по большинству забитых фишек за удар (если нет ничьей)
         if (turnEvents.pocketedWhite > turnEvents.pocketedBlack) {
           newPlayerColors[pKey] = 'white';
           newPlayerColors[oppKey] = 'black';
@@ -279,10 +294,12 @@ export const useGameStore = create(
           returns.push({ type: 'queen' });
           nextQueenState = 'on_board';
         } else {
-          if (ownPocketed > 0) {
+          // Если цвет уже был назначен ДО этого удара, и игрок забил свою фишку в этот же удар - Королева покрывается сразу!
+          if (!justAssignedColor && ownPocketed > 0) {
             nextQueenState = 'covered';
             nextQueenCoveredBy = currentPlayer;
           } else {
+            // Иначе (первый удар в игре с выбором цвета, или своя фишка не забита) - Королева требует покрытия в следующий ход
             nextQueenState = 'pocketed_uncovered';
           }
         }
@@ -374,8 +391,13 @@ export const useGameStore = create(
       let nextPlayer = currentPlayer;
       const didLegallyPocketOwn = ownPocketed > 0;
       const didLegallyPocketQueen = turnEvents.pocketedQueen && ownColor && !isFoul;
+      const isColorTie = !newPlayerColors[pKey] && turnEvents.pocketedWhite > 0 && turnEvents.pocketedWhite === turnEvents.pocketedBlack;
       
-      if (isFoul || didLegallyPocketOwn || didLegallyPocketQueen) {
+      if (isColorTie && !isFoul) {
+        // Если ничья по цветам, ход гарантированно остается у игрока (он выбирает цвет)
+        nextPlayer = currentPlayer;
+        newConsecutiveMisses = 0;
+      } else if (isFoul || didLegallyPocketOwn || didLegallyPocketQueen) {
         // При фоле или успешном забивании счетчик промахов сбрасывается
         newConsecutiveMisses = 0;
         if (isFoul || (!didLegallyPocketOwn && !didLegallyPocketQueen)) {
@@ -422,6 +444,10 @@ export const useGameStore = create(
         draft.gameOverScore = gameOverScore;
         draft.consecutiveMisses = newConsecutiveMisses;
         draft.currentPlayer = nextPlayer;
+        draft.showColorSelection = isColorTie && !isFoul;
+        if (isColorTie && !isFoul) {
+          draft.isPlacementBlocked = true;
+        }
         draft.turnEvents = initialTurnEvents();
         draft.gamePhase = 'PLACEMENT';
         if (justAssignedColor) {
@@ -429,7 +455,7 @@ export const useGameStore = create(
         }
       });
 
-      return { nextPlayer, returns };
+      return { nextPlayer, returns, showColorSelection: isColorTie && !isFoul };
     },
   }))
 );
