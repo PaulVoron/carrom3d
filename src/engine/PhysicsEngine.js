@@ -35,7 +35,8 @@ export const PHYSICS = {
 
   maxLinearSpeed: 3.0,     // Ограничение максимальной скорости фишек для стабильности физики
 
-  pocketRadius: 0.02275,   // Радиус триггерных зон луз
+  pocketRadius: 0.0265,   // Радиус триггерных зон луз
+  pocketOffset: 0.019,   // Смещение центров луз относительно углов игровой поверхности стола
   pocketFallDepth: -0.1,   // Координата Y, ниже которой фишка считается полностью забитой
 
   pocketDragFactor: 0.85,  // Множитель затухания скорости (трения) при попадании в лузу
@@ -80,6 +81,7 @@ export class PhysicsEngine {
 
     /** Коллбэк: вызывается когда объект вылетел за пределы стола */
     this.onOutOfBounds = null;
+    this.boardBounds = null;
   }
 
   // ─── Инициализация ──────────────────────────────────────────────────────────
@@ -150,14 +152,15 @@ export class PhysicsEngine {
    * @param {object} params — геометрия стола
    */
   createBoardBodies({ minX, maxX, minZ, maxZ, cx, cz, widthX, widthZ }) {
-    const pr = PHYSICS.pocketRadius;
+    this.boardBounds = { minX, maxX, minZ, maxZ };
+    const po = PHYSICS.pocketOffset;
     // Сохраняем центры луз (THREE.Vector3 создаётся снаружи через коллбэк,
     // здесь храним просто { x, z })
     this.pocketCenters = [
-      { x: maxX - pr, y: 0, z: maxZ - pr },
-      { x: maxX - pr, y: 0, z: minZ + pr },
-      { x: minX + pr, y: 0, z: maxZ - pr },
-      { x: minX + pr, y: 0, z: minZ + pr },
+      { x: maxX - po, y: 0, z: maxZ - po },
+      { x: maxX - po, y: 0, z: minZ + po },
+      { x: minX + po, y: 0, z: maxZ - po },
+      { x: minX + po, y: 0, z: minZ + po },
     ];
 
     const boardTopY = 0.001;
@@ -278,7 +281,15 @@ export class PhysicsEngine {
 
       const pos = body.translation();
 
-      // ── Финальное удаление ────────────────────────────────────────────
+      // ── Проверка на вылет за борт (вниз или зависание на бортике) ───────────
+      const isOutside = this.boardBounds && (
+        pos.x < this.boardBounds.minX ||
+        pos.x > this.boardBounds.maxX ||
+        pos.z < this.boardBounds.minZ ||
+        pos.z > this.boardBounds.maxZ
+      );
+
+      // ── Финальное удаление (падение под стол) ──────────────────────────
       if (pos.y < PHYSICS.pocketFallDepth) {
         if (mesh.userData.isFalling) {
           if (this.onPocketEnter) this.onPocketEnter(entry);
@@ -286,6 +297,17 @@ export class PhysicsEngine {
           if (this.onOutOfBounds) this.onOutOfBounds(entry);
         }
         continue;
+      }
+
+      // Если фишка за пределами поля и практически остановилась на бортике
+      if (isOutside && !mesh.userData.isFalling) {
+        const vel = body.linvel();
+        const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
+        if (speed < 0.01) { // Полностью остановилась на бортике
+          console.log(`⚠️ Фишка ${mesh.userData.type} застряла на бортике.`);
+          if (this.onOutOfBounds) this.onOutOfBounds(entry);
+          continue;
+        }
       }
 
       // ── Засасывание в лузу ────────────────────────────────────────────

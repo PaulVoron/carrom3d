@@ -242,12 +242,12 @@ export const useGameStore = create(
       // ─── 0. Назначение цвета ──────────────────────────────────────────────────
       let justAssignedColor = false;
       if (!newPlayerColors[pKey]) {
-        // Если забиты только белые или только черные, назначаем цвет
-        if (turnEvents.pocketedWhite > 0 && turnEvents.pocketedBlack === 0) {
+        // Назначаем цвет по большинству забитых фишек за удар
+        if (turnEvents.pocketedWhite > turnEvents.pocketedBlack) {
           newPlayerColors[pKey] = 'white';
           newPlayerColors[oppKey] = 'black';
           justAssignedColor = true;
-        } else if (turnEvents.pocketedBlack > 0 && turnEvents.pocketedWhite === 0) {
+        } else if (turnEvents.pocketedBlack > turnEvents.pocketedWhite) {
           newPlayerColors[pKey] = 'black';
           newPlayerColors[oppKey] = 'white';
           justAssignedColor = true;
@@ -291,8 +291,18 @@ export const useGameStore = create(
           nextQueenState = 'covered';
           nextQueenCoveredBy = currentPlayer; // Тот, кто забил королеву в прошлый ход, сейчас покрыл её
         } else {
-          returns.push({ type: 'queen' });
-          nextQueenState = 'on_board';
+          // Проверяем, дается ли игроку второй шанс (дополнительный удар)
+          const isSecondChance = !isFoul && !hitSomething && state.consecutiveMisses === 0;
+
+          if (isSecondChance) {
+            // Если дается второй шанс, Королева остается в состоянии pocketed_uncovered,
+            // ее не нужно выставлять на стол!
+            nextQueenState = 'pocketed_uncovered';
+          } else {
+            // Иначе (фол, удар с касанием без забития, или промах на втором шансе) - Королева возвращается
+            returns.push({ type: 'queen' });
+            nextQueenState = 'on_board';
+          }
         }
       }
 

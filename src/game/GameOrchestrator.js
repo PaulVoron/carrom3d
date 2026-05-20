@@ -70,6 +70,9 @@ export class GameOrchestrator {
     this.physics.onPocketEnter = (entry) => {
       this.rules.handlePocketResult(entry);
     };
+    this.physics.onOutOfBounds = (entry) => {
+      this.rules.handleOutOfBounds(entry);
+    };
 
     // 9. Сигнализируем React, что готово (теперь это делает MainMenu)
     // useGameStore.getState().setReady(true);
