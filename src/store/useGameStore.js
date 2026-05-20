@@ -337,6 +337,9 @@ export const useGameStore = create(
         }
       }
 
+      // Определяем факт успешного легального забивания своей фишки до списания долгов
+      const didLegallyPocketOwn = ownColor && ownPocketed > 0 && !isFoul;
+
       // ─── 3. Фолы и долги ──────────────────────────────────────────────────────
       if (isFoul) {
         if (ownColor) {
@@ -389,7 +392,6 @@ export const useGameStore = create(
 
       // ─── 6. Передача хода и второй шанс при промахе ─────────────────────────
       let nextPlayer = currentPlayer;
-      const didLegallyPocketOwn = ownPocketed > 0;
       const didLegallyPocketQueen = turnEvents.pocketedQueen && ownColor && !isFoul;
       const isColorTie = !newPlayerColors[pKey] && turnEvents.pocketedWhite > 0 && turnEvents.pocketedWhite === turnEvents.pocketedBlack;
       
