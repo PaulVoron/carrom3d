@@ -11,7 +11,7 @@ export const QueenStatus = () => {
 
   switch (queenState) {
     case 'on_board':
-      statusText = 'На столе';
+      statusText = 'На столі';
       statusClass = styles.onBoard;
       break;
     case 'pocketed_uncovered':
@@ -19,7 +19,7 @@ export const QueenStatus = () => {
       statusClass = styles.pocketedUncovered;
       break;
     case 'covered':
-      statusText = queenCoveredBy ? `Закрыта Игр. ${queenCoveredBy}` : 'Закрыта';
+      statusText = queenCoveredBy ? `Закрита Грав. ${queenCoveredBy}` : 'Закрита';
       statusClass = styles.covered;
       break;
     default:

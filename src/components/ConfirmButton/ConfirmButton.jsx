@@ -6,6 +6,11 @@ import styles from './ConfirmButton.module.scss';
 export const ConfirmButton = () => {
   const gamePhase = useGameStore((state) => state.gamePhase);
   const isPlacementBlocked = useGameStore((state) => state.isPlacementBlocked);
+  const networkMode = useGameStore((state) => state.networkMode);
+  const currentPlayer = useGameStore((state) => state.currentPlayer);
+  const localPlayerRole = useGameStore((state) => state.localPlayerRole);
+
+  const isActive = networkMode === 'local' || currentPlayer === localPlayerRole;
 
   if (gamePhase !== 'PLACEMENT') {
     return null;
@@ -14,10 +19,10 @@ export const ConfirmButton = () => {
   return (
     <button
       className={styles.button}
-      disabled={isPlacementBlocked}
+      disabled={isPlacementBlocked || !isActive}
       onClick={() => orchestrator.confirmPlacement()}
     >
-      Готов к удару
+      Готовий до удару
     </button>
   );
 };

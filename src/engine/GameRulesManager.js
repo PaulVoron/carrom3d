@@ -8,9 +8,11 @@
 import gsap from 'gsap';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { useGameStore, recordPocket } from '../store/useGameStore.js';
-import { PHYSICS, MASK_COIN_NORMAL } from './PhysicsEngine.js';
+import { MASK_COIN_NORMAL } from './PhysicsEngine.js';
 import { PLAYER_1_LINE_Z, PLAYER_2_LINE_Z } from './InputController.js';
 import { START_CAMERA_POSITION } from './3d-scene-settings.js';
+import { networkManager } from './NetworkManager.js';
+import * as THREE from 'three';
 
 export class GameRulesManager {
   /**
@@ -35,6 +37,45 @@ export class GameRulesManager {
     this._strikerHitSomething = false;
     this._lastPhase = 'PLACEMENT';
     this._lastPlayerCamera = null;
+
+    this._setupNetworking();
+  }
+
+  _setupNetworking() {
+    networkManager.on('SYNC_PLACEMENT', (data) => {
+      const { currentPlayer, networkMode } = useGameStore.getState();
+      if (networkMode !== 'local') {
+        this.onStrikerDrag(data.x, currentPlayer);
+      }
+    });
+
+    networkManager.on('SYNC_AIM', (data) => {
+      if (useGameStore.getState().networkMode !== 'local') {
+        this.input.currentImpulse.set(data.impulse.x, data.impulse.y, data.impulse.z);
+      }
+    });
+
+    networkManager.on('CONFIRM_PLACEMENT', () => {
+      if (useGameStore.getState().networkMode !== 'local') {
+        this.confirmPlacement(true);
+      }
+    });
+
+    networkManager.on('STRIKE', (data) => {
+      if (useGameStore.getState().networkMode !== 'local') {
+        const vec = new THREE.Vector3(data.impulse.x, data.impulse.y, data.impulse.z);
+        this.shoot(vec, true);
+        this.input.currentImpulse.set(0, 0, 0);
+      }
+    });
+
+    networkManager.on('SYNC_TURN_RESULT', (data) => {
+      if (useGameStore.getState().networkMode === 'client') {
+        this.physics.applySnapshot(data.snapshot);
+        useGameStore.getState().syncStoreState(data.storeState);
+        this._executeEndTurnReturns(data.storeState.currentPlayer, data.returns);
+      }
+    });
   }
 
   // ─── Инициализация ──────────────────────────────────────────────────────────
@@ -73,9 +114,13 @@ export class GameRulesManager {
 
     // ─── Инициализация камеры и битка (например, после жребия) ──────────────
     if (phase === 'PLACEMENT') {
-      if (this._lastPlayerCamera !== currentPlayer) {
-        this._rotateCameraForPlayer(currentPlayer);
-        this._lastPlayerCamera = currentPlayer;
+      const mode = useGameStore.getState().networkMode;
+      const role = useGameStore.getState().localPlayerRole;
+      const cameraPlayer = mode === 'local' ? currentPlayer : role;
+
+      if (this._lastPlayerCamera !== cameraPlayer) {
+        this._rotateCameraForPlayer(cameraPlayer);
+        this._lastPlayerCamera = cameraPlayer;
 
         if (this.strikerEntry) {
           const resetPos = {
@@ -105,14 +150,15 @@ export class GameRulesManager {
 
         // Сила натяжения (расстояние оттяжки)
         const pullDistance = imp.length();
-        const ratio = Math.min(1.0, pullDistance / PHYSICS.maxPullDistance);
+        const maxDist = 0.25; // PHYSICS.maxPullDistance fallback
+        const ratio = Math.min(1.0, pullDistance / maxDist);
 
         // Растет вперед
         this.render.aimBarMesh.scale.y = pullDistance * 2.0;
 
         // Расширяется в стороны (максимум до диаметра битка)
         const minWidth = 0.01;
-        const maxWidth = PHYSICS.strikerDia;
+        const maxWidth = 0.0413; // PHYSICS.strikerDia fallback
         this.render.aimBarMesh.scale.x = minWidth + ratio * (maxWidth - minWidth);
       } else {
         this.render.aimBar.visible = false;
@@ -205,16 +251,67 @@ export class GameRulesManager {
     console.log('🎱 Ход завершён → оцениваем...');
     this._checkSleepFrameCount = 0;
 
-    // Вычисляем итог хода (обновляет стор атомарно)
-    const { nextPlayer, returns } = useGameStore.getState().evaluateTurn({ 
-      hitSomething: this._strikerHitSomething 
+    const { networkMode } = useGameStore.getState();
+    
+    if (networkMode === 'client') {
+      console.log('⏳ Ожидание SYNC_TURN_RESULT от хоста...');
+      return;
+    }
+
+    // Host or Local
+    const snapshot = this.physics.getSnapshot();
+    const hitSomething = this._strikerHitSomething;
+    
+    const { nextPlayer, returns } = useGameStore.getState().evaluateTurn({ hitSomething });
+    
+    const returnsWithPos = returns.map(ret => {
+      if (ret.type === 'queen') return { ...ret, pos: this.physics.getFreePosition(true, this.coinRadius) };
+      if (ret.type === 'coin') {
+        const positions = [];
+        for (let i = 0; i < ret.count; i++) {
+          positions.push(this.physics.getFreePosition(false, this.coinRadius));
+        }
+        return { ...ret, positions };
+      }
+      return ret;
     });
 
+    if (networkMode === 'host') {
+      const storeState = useGameStore.getState();
+      networkManager.send('SYNC_TURN_RESULT', {
+        snapshot,
+        returns: returnsWithPos,
+        storeState: {
+          score: storeState.score,
+          playerColors: storeState.playerColors,
+          dueDebt: storeState.dueDebt,
+          queenState: storeState.queenState,
+          queenCoveredBy: storeState.queenCoveredBy,
+          winner: storeState.winner,
+          gameOverScore: storeState.gameOverScore,
+          consecutiveMisses: storeState.consecutiveMisses,
+          currentPlayer: storeState.currentPlayer,
+          turnEvents: storeState.turnEvents,
+          gamePhase: storeState.gamePhase,
+          lastStartingPlayer: storeState.lastStartingPlayer,
+          colorAssignmentAlert: storeState.colorAssignmentAlert
+        }
+      });
+    }
+
+    this._executeEndTurnReturns(nextPlayer, returnsWithPos);
+  }
+
+  _executeEndTurnReturns(nextPlayer, returns) {
     this._processReturns(returns, () => {
       // Поворачиваем камеру к следующему игроку после выставления штрафов
-      if (this._lastPlayerCamera !== nextPlayer) {
-        this._rotateCameraForPlayer(nextPlayer);
-        this._lastPlayerCamera = nextPlayer;
+      const mode = useGameStore.getState().networkMode;
+      const role = useGameStore.getState().localPlayerRole;
+      const cameraPlayer = mode === 'local' ? nextPlayer : role;
+
+      if (this._lastPlayerCamera !== cameraPlayer) {
+        this._rotateCameraForPlayer(cameraPlayer);
+        this._lastPlayerCamera = cameraPlayer;
       }
       // Восстанавливаем биток
       if (this.strikerEntry) {
@@ -267,7 +364,7 @@ export class GameRulesManager {
         const queenEntry = this.physics.physicsBodies.find(e => e.mesh.userData.type === 'queen');
         if (queenEntry) {
           totalAnims++;
-          this._animateReturn(queenEntry, true, checkDone);
+          this._animateReturn(queenEntry, true, ret.pos, checkDone);
         }
       } else if (ret.type === 'coin') {
         const color = ret.color;
@@ -277,7 +374,7 @@ export class GameRulesManager {
         );
         for (let i = 0; i < Math.min(count, availableCoins.length); i++) {
           totalAnims++;
-          this._animateReturn(availableCoins[i], false, checkDone);
+          this._animateReturn(availableCoins[i], false, ret.positions[i], checkDone);
         }
       }
     });
@@ -287,8 +384,11 @@ export class GameRulesManager {
     }
   }
 
-  _animateReturn(entry, isQueen, onComplete) {
-    const pos = this.physics.getFreePosition(isQueen, this.coinRadius);
+  _animateReturn(entry, isQueen, pos, onComplete) {
+    if (!pos) {
+      onComplete();
+      return;
+    }
     
     entry.body.setEnabled(false);
     entry.mesh.visible = true;
@@ -358,9 +458,13 @@ export class GameRulesManager {
 
   // ─── Подтверждение расстановки ───────────────────────────────────────────────
 
-  confirmPlacement() {
-    const { gamePhase } = useGameStore.getState();
+  confirmPlacement(isRemote = false) {
+    const { gamePhase, networkMode } = useGameStore.getState();
     if (gamePhase !== 'PLACEMENT' || !this.strikerEntry) return;
+
+    if (!isRemote && networkMode !== 'local') {
+      networkManager.send('CONFIRM_PLACEMENT', {});
+    }
 
     const currentPos = this.strikerEntry.mesh.position.clone();
     useGameStore.getState().setGamePhase('AIMING');
@@ -372,12 +476,16 @@ export class GameRulesManager {
 
   // ─── Удар ────────────────────────────────────────────────────────────────────
 
-  shoot(impulseVec) {
-    const { gamePhase } = useGameStore.getState();
+  shoot(impulseVec, isRemote = false) {
+    const { gamePhase, networkMode } = useGameStore.getState();
     if (gamePhase !== 'AIMING') return;
 
+    if (!isRemote && networkMode !== 'local') {
+      networkManager.send('STRIKE', { impulse: { x: impulseVec.x, y: impulseVec.y, z: impulseVec.z } });
+    }
+
     this.physics.wakeAll();
-    const scaled = impulseVec.clone().multiplyScalar(PHYSICS.strikerForce);
+    const scaled = impulseVec.clone().multiplyScalar(0.5); // PHYSICS.strikerForce fallback
     this.physics.applyImpulse(this.strikerEntry.body, scaled);
 
     useGameStore.getState().setGamePhase('MOVING');

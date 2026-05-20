@@ -12,6 +12,7 @@ import { InputController, PLAYER_1_LINE_Z } from '../engine/InputController.js';
 import { GameRulesManager } from '../engine/GameRulesManager.js';
 import { useGameStore } from '../store/useGameStore.js';
 import { DEBUG_MODE } from '../engine/3d-scene-settings.js';
+import { networkManager } from '../engine/NetworkManager.js';
 
 export class GameOrchestrator {
   constructor() {
@@ -46,6 +47,7 @@ export class GameOrchestrator {
     // 5. Прогрев физики (усадка фишек)
     this.physics.warmup(240);
     this._syncAfterWarmup();
+    this.initialSnapshot = this.physics.getSnapshot();
 
     // 6. Привязываем инпут
     this.input.attach(canvas, this.render.camera, this.render.controls);
@@ -69,11 +71,35 @@ export class GameOrchestrator {
       this.rules.handlePocketResult(entry);
     };
 
-    // 9. Сигнализируем React, что готово
-    useGameStore.getState().setReady(true);
+    // 9. Сигнализируем React, что готово (теперь это делает MainMenu)
+    // useGameStore.getState().setReady(true);
 
     // 10. Начальная валидация позиции
     this.rules._validateInitialPlacement(1);
+
+    networkManager.on('RESTART_GAME', (data) => {
+      if (useGameStore.getState().networkMode === 'client') {
+        this.restartGame(data.startingPlayer);
+      }
+    });
+    
+    networkManager.on('RESTART_REQUEST', () => {
+      if (useGameStore.getState().networkMode === 'host') {
+        const nextStarter = useGameStore.getState().lastStartingPlayer === 1 ? 2 : 1; 
+        networkManager.send('RESTART_GAME', { startingPlayer: nextStarter });
+        this.restartGame(nextStarter);
+      }
+    });
+  }
+
+  restartGame(startingPlayer = null) {
+    if (this.initialSnapshot) {
+      this.physics.applySnapshot(this.initialSnapshot);
+      this._syncAfterWarmup();
+    }
+    useGameStore.getState().initGame(startingPlayer);
+    this.input.setGamePhase('PLACEMENT');
+    this.rules._validateInitialPlacement(useGameStore.getState().currentPlayer);
   }
 
   // ─── RAF-тик ────────────────────────────────────────────────────────────────

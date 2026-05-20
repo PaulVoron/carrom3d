@@ -3,7 +3,9 @@ import { GameCanvas } from './components/GameCanvas/GameCanvas';
 import { ScoreBoard } from './components/ScoreBoard/ScoreBoard';
 import { ConfirmButton } from './components/ConfirmButton/ConfirmButton';
 import { GameOverPopup } from './components/GameOverPopup/GameOverPopup';
+import { MainMenu } from './components/MainMenu/MainMenu';
 import { useGameStore } from './store/useGameStore';
+import { ColorAlert } from './components/ColorAlert/ColorAlert';
 import './styles/global.scss';
 
 export const App = () => {
@@ -12,11 +14,13 @@ export const App = () => {
   return (
     <>
       <GameCanvas />
+      {!isReady && <MainMenu />}
       {isReady && (
         <>
           <ScoreBoard />
           <ConfirmButton />
           <GameOverPopup />
+          <ColorAlert />
         </>
       )}
     </>

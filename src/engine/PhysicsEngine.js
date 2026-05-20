@@ -475,6 +475,55 @@ export class PhysicsEngine {
     this.makeStrikerKinematic(strikerEntry, position);
   }
 
+  // ─── Снапшоты (для мультиплеера) ─────────────────────────────────────────────
+
+  getSnapshot() {
+    const snapshot = [];
+    for (let i = 0; i < this.physicsBodies.length; i++) {
+      const entry = this.physicsBodies[i];
+      const body = entry.body;
+      snapshot.push({
+        isEnabled: body.isEnabled(),
+        translation: body.translation(),
+        rotation: body.rotation(),
+        linvel: body.linvel(),
+        angvel: body.angvel(),
+      });
+    }
+    return snapshot;
+  }
+
+  applySnapshot(snapshot) {
+    for (let i = 0; i < this.physicsBodies.length; i++) {
+      const entry = this.physicsBodies[i];
+      const snap = snapshot[i];
+      if (!snap) continue;
+      
+      const body = entry.body;
+      if (snap.isEnabled) {
+        body.setEnabled(true);
+        body.setTranslation(snap.translation, true);
+        body.setRotation(snap.rotation, true);
+        body.setLinvel(snap.linvel, true);
+        body.setAngvel(snap.angvel, true);
+        body.sleep();
+        
+        entry.mesh.position.copy(snap.translation);
+        entry.mesh.quaternion.copy(snap.rotation);
+        entry.mesh.visible = true;
+        if (entry.mesh.userData.type === 'striker') {
+           entry.mesh.userData.pocketed = false;
+        }
+      } else {
+        body.setEnabled(false);
+        entry.mesh.visible = false;
+        if (entry.mesh.userData.type === 'striker') {
+           entry.mesh.userData.pocketed = true;
+        }
+      }
+    }
+  }
+
   dispose() {
     this.physicsBodies = [];
     this.pocketCenters = [];

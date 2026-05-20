@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { PHYSICS } from './PhysicsEngine.js';
 import { useGameStore } from '../store/useGameStore.js';
+import { networkManager } from './NetworkManager.js';
 
 export const PLAYER_1_LINE_Z  =  0.25;
 export const PLAYER_2_LINE_Z  = -0.25;
@@ -60,8 +61,17 @@ export class InputController {
 
   setGamePhase(phase) { this._gamePhase = phase; }
 
+  _isLocalPlayerActive() {
+    const mode = useGameStore.getState().networkMode;
+    const player = useGameStore.getState().currentPlayer;
+    const role = useGameStore.getState().localPlayerRole;
+    if (mode === 'local') return true;
+    if (mode !== 'local' && player === role) return true;
+    return false;
+  }
+
   _onDown = (event) => {
-    if (!this._strikerEntry) return;
+    if (!this._strikerEntry || !this._isLocalPlayerActive()) return;
     this._updateNDC(event);
     this._raycaster.setFromCamera(this._pointerNDC, this._camera);
     const hits = this._raycaster.intersectObject(this._strikerEntry.mesh, true);
@@ -82,7 +92,7 @@ export class InputController {
   };
 
   _onMove = (event) => {
-    if (!this._strikerEntry) return;
+    if (!this._strikerEntry || !this._isLocalPlayerActive()) return;
     this._updateNDC(event);
     this._raycaster.setFromCamera(this._pointerNDC, this._camera);
     const hit = new THREE.Vector3();
@@ -91,14 +101,23 @@ export class InputController {
     if (this._gamePhase === 'PLACEMENT' && this._isDragging) {
       const x = THREE.MathUtils.clamp(hit.x, PLAYER_LINE_MIN_X, PLAYER_LINE_MAX_X);
       if (this.onStrikerDrag) this.onStrikerDrag(x);
+      
+      if (useGameStore.getState().networkMode !== 'local') {
+        networkManager.send('SYNC_PLACEMENT', { x });
+      }
     } else if (this._gamePhase === 'AIMING' && this._isAiming) {
       const pull = new THREE.Vector3().subVectors(hit, this._aimStart);
       if (pull.length() > PHYSICS.maxPullDistance) pull.setLength(PHYSICS.maxPullDistance);
       this.currentImpulse.copy(pull).multiplyScalar(-1);
+
+      if (useGameStore.getState().networkMode !== 'local') {
+        networkManager.send('SYNC_AIM', { impulse: { x: this.currentImpulse.x, y: this.currentImpulse.y, z: this.currentImpulse.z } });
+      }
     }
   };
 
   _onUp = () => {
+    if (!this._isLocalPlayerActive()) return;
     if (this._gamePhase === 'PLACEMENT' && this._isDragging) {
       this._isDragging = false;
       if (this._controls) this._controls.enabled = true;
@@ -113,6 +132,7 @@ export class InputController {
   };
 
   _onKeyDown = (event) => {
+    if (!this._isLocalPlayerActive()) return;
     if (event.code === 'Space') {
       event.preventDefault();
       const state = useGameStore.getState();

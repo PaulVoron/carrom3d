@@ -1,0 +1,155 @@
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at center, rgba(30, 30, 40, 0.8) 0%, rgba(10, 10, 15, 0.95) 100%);
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+.menuCard {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 40px;
+  width: 400px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  color: white;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.title {
+  font-size: 3rem;
+  margin-bottom: 40px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff, #aaa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.primaryButton, .secondaryButton, .cancelButton {
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  width: 100%;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+  }
+}
+
+.secondaryButton {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+  }
+}
+
+.cancelButton {
+  background: rgba(255, 50, 50, 0.2);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 50, 50, 0.3);
+  margin-top: 20px;
+  
+  &:hover {
+    background: rgba(255, 50, 50, 0.3);
+  }
+}
+
+.divider {
+  margin: 10px 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  
+  &::before, &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 10px;
+  }
+}
+
+.joinContainer {
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 0 16px;
+  color: white;
+  font-size: 1.1rem;
+  text-align: center;
+  text-transform: uppercase;
+  outline: none;
+  width: 100px;
+  
+  &:focus {
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+}
+
+.waitingState {
+  h2 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    color: #aaa;
+  }
+}
+
+.roomCode {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: 4px;
+  margin: 20px 0;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.error {
+  color: #ff6b6b;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

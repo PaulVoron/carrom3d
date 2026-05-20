@@ -90,15 +90,36 @@ export const useGameStore = create(
     /** Флаг: идёт ли анимация камеры */
     isCameraAnimating: false,
 
-    /** Инициализирована ли игра (показывать ли UI) */
+    /** Флаг: инициализирована ли игра (показывать ли UI) */
     isReady: false,
+
+    // ── Сеть ───────────────────────────────────────────────────────────────
+    /** @type {'local' | 'host' | 'client'} */
+    networkMode: 'local',
+
+    /** @type {'disconnected' | 'waiting' | 'connected'} */
+    connectionStatus: 'disconnected',
+
+    /** @type {string | null} */
+    roomCode: null,
+
+    /** @type {PlayerId | null} */
+    localPlayerRole: null,
+
+    /** @type {PlayerId | null} */
+    lastStartingPlayer: null,
+
+    /** @type {string | null} */
+    colorAssignmentAlert: null,
 
     // ── Экшены ─────────────────────────────────────────────────────────────
 
     /** Инициализировать новую игру (жребий и сброс состояния) */
-    initGame: () =>
+    initGame: (forceStartingPlayer = null) =>
       set((state) => {
-        state.currentPlayer = Math.random() > 0.5 ? 1 : 2;
+        const start = forceStartingPlayer || (Math.random() > 0.5 ? 1 : 2);
+        state.currentPlayer = start;
+        state.lastStartingPlayer = start;
         state.score = { white: 0, black: 0 };
         state.playerColors = { player1: null, player2: null };
         state.dueDebt = { player1: 0, player2: 0 };
@@ -135,6 +156,41 @@ export const useGameStore = create(
     /** Установить флаг анимации камеры */
     setCameraAnimating: (/** @type {boolean} */ animating) =>
       set((state) => { state.isCameraAnimating = animating; }),
+
+    /** Установить сетевой режим */
+    setNetworkMode: (/** @type {'local' | 'host' | 'client'} */ mode) =>
+      set((state) => { state.networkMode = mode; }),
+
+    /** Установить статус подключения */
+    setConnectionStatus: (/** @type {'disconnected' | 'waiting' | 'connected'} */ status) =>
+      set((state) => { state.connectionStatus = status; }),
+
+    /** Установить код комнаты */
+    setRoomCode: (/** @type {string | null} */ code) =>
+      set((state) => { state.roomCode = code; }),
+
+    /** Установить роль локального игрока */
+    setLocalPlayerRole: (/** @type {PlayerId | null} */ role) =>
+      set((state) => { state.localPlayerRole = role; }),
+
+    clearColorAssignmentAlert: () => set((state) => { state.colorAssignmentAlert = null; }),
+
+    /** Синхронизировать весь стор (используется Клиентом) */
+    syncStoreState: (newState) => set((draft) => {
+      draft.score = newState.score;
+      draft.playerColors = newState.playerColors;
+      draft.dueDebt = newState.dueDebt;
+      draft.queenState = newState.queenState;
+      draft.queenCoveredBy = newState.queenCoveredBy;
+      draft.winner = newState.winner;
+      draft.gameOverScore = newState.gameOverScore;
+      draft.consecutiveMisses = newState.consecutiveMisses;
+      draft.currentPlayer = newState.currentPlayer;
+      draft.turnEvents = newState.turnEvents;
+      draft.gamePhase = newState.gamePhase;
+      draft.lastStartingPlayer = newState.lastStartingPlayer;
+      draft.colorAssignmentAlert = newState.colorAssignmentAlert;
+    }),
 
     // ── Ивенты хода ────────────────────────────────────────────────────────
 
@@ -184,14 +240,17 @@ export const useGameStore = create(
       let returns = [];
 
       // ─── 0. Назначение цвета ──────────────────────────────────────────────────
+      let justAssignedColor = false;
       if (!newPlayerColors[pKey]) {
         // Если забиты только белые или только черные, назначаем цвет
         if (turnEvents.pocketedWhite > 0 && turnEvents.pocketedBlack === 0) {
           newPlayerColors[pKey] = 'white';
           newPlayerColors[oppKey] = 'black';
+          justAssignedColor = true;
         } else if (turnEvents.pocketedBlack > 0 && turnEvents.pocketedWhite === 0) {
           newPlayerColors[pKey] = 'black';
           newPlayerColors[oppKey] = 'white';
+          justAssignedColor = true;
         }
       }
 
@@ -355,6 +414,9 @@ export const useGameStore = create(
         draft.currentPlayer = nextPlayer;
         draft.turnEvents = initialTurnEvents();
         draft.gamePhase = 'PLACEMENT';
+        if (justAssignedColor) {
+          draft.colorAssignmentAlert = Date.now().toString();
+        }
       });
 
       return { nextPlayer, returns };
@@ -379,3 +441,9 @@ export const recordOutOfBounds = (type) => useGameStore.getState().recordOutOfBo
 
 /** Завершить ход из Vanilla JS, вернуть следующего игрока */
 export const evaluateTurn = (params) => useGameStore.getState().evaluateTurn(params);
+
+/** Получить сетевой режим */
+export const getNetworkMode = () => useGameStore.getState().networkMode;
+
+/** Получить статус подключения */
+export const getConnectionStatus = () => useGameStore.getState().connectionStatus;
