@@ -36,7 +36,7 @@ export class GameRulesManager {
 
     this._strikerHitSomething = false;
     this._lastPhase = 'PLACEMENT';
-    this._lastPlayerCamera = null;
+    this._lastCurrentPlayer = null;
 
     this._setupNetworking();
   }
@@ -118,9 +118,9 @@ export class GameRulesManager {
       const role = useGameStore.getState().localPlayerRole;
       const cameraPlayer = mode === 'local' ? currentPlayer : role;
 
-      if (this._lastPlayerCamera !== cameraPlayer) {
+      if (this._lastCurrentPlayer !== currentPlayer) {
         this._rotateCameraForPlayer(cameraPlayer);
-        this._lastPlayerCamera = cameraPlayer;
+        this._lastCurrentPlayer = currentPlayer;
 
         if (this.strikerEntry) {
           const resetPos = {
@@ -309,9 +309,9 @@ export class GameRulesManager {
       const role = useGameStore.getState().localPlayerRole;
       const cameraPlayer = mode === 'local' ? nextPlayer : role;
 
-      if (this._lastPlayerCamera !== cameraPlayer) {
+      if (this._lastCurrentPlayer !== nextPlayer) {
         this._rotateCameraForPlayer(cameraPlayer);
-        this._lastPlayerCamera = cameraPlayer;
+        this._lastCurrentPlayer = nextPlayer;
       }
       // Восстанавливаем биток
       if (this.strikerEntry) {

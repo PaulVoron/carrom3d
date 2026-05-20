@@ -98,6 +98,7 @@ export class GameOrchestrator {
       this._syncAfterWarmup();
     }
     useGameStore.getState().initGame(startingPlayer);
+    this.rules._lastCurrentPlayer = null;
     this.input.setGamePhase('PLACEMENT');
     this.rules._validateInitialPlacement(useGameStore.getState().currentPlayer);
   }

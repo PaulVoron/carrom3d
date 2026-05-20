@@ -7,6 +7,8 @@ import { networkManager } from '../../engine/NetworkManager';
 export const GameOverPopup = () => {
   const winner = useGameStore((state) => state.winner);
   const gameOverScore = useGameStore((state) => state.gameOverScore);
+  const networkMode = useGameStore((state) => state.networkMode);
+  const localPlayerRole = useGameStore((state) => state.localPlayerRole);
   
   const handleRestart = () => {
     const state = useGameStore.getState();
@@ -27,7 +29,13 @@ export const GameOverPopup = () => {
     <div className={styles.overlay}>
       <div className={styles.popup}>
         <div className={styles.title}>Гру закінчено!</div>
-        <div className={styles.winnerText}>Переміг Гравець {winner}</div>
+        <div className={styles.winnerText}>
+          {networkMode !== 'local' && localPlayerRole
+            ? winner === localPlayerRole
+              ? 'Ви перемогли!'
+              : 'Переміг суперник'
+            : `Переміг Гравець ${winner}`}
+        </div>
         <div className={styles.scoreText}>Рахунок: {gameOverScore}</div>
         <button className={styles.newGameBtn} onClick={handleRestart}>
           Нова гра

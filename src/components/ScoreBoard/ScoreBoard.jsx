@@ -14,16 +14,15 @@ export const ScoreBoard = () => {
 
   const getPlayerLabel = (pId) => {
     const color = playerColors[`player${pId}`];
-    let colorName = '';
-    if (color === 'white') colorName = 'Білі';
-    else if (color === 'black') colorName = 'Чорні';
-    else colorName = 'Обирає...';
+    let colorSuffix = '';
+    if (color === 'white') colorSuffix = ' (Білі)';
+    else if (color === 'black') colorSuffix = ' (Чорні)';
 
     if (networkMode !== 'local' && localPlayerRole) {
       const name = pId === localPlayerRole ? 'Ви' : 'Суперник';
-      return `${name} (${colorName})`;
+      return `${name}${colorSuffix}`;
     }
-    return `Гравець ${pId} (${colorName})`;
+    return `Гравець ${pId}${colorSuffix}`;
   };
 
   const getPlayerScore = (pId) => {
