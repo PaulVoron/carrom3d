@@ -330,11 +330,29 @@ export const useGameStore = create(
         }
       }
 
-      // ─── 2. Штраф за забивание последней фишки, если королева на столе ────────
+      // ─── 2. Штраф за забивание последней фишки (своей или чужой), если королева на столе ────────
       if (ownColor) {
+        const oppColor = ownColor === 'white' ? 'black' : 'white';
         const currentOwnScore = newScore[ownColor];
+        const currentOppScore = newScore[oppColor];
+
+        // 2a. Своя последняя фишка
         if (currentOwnScore + ownPocketed >= 9 && nextQueenState !== 'covered') {
           isFoul = true;
+          // Если королева была забита в этот же ход, она аннулируется
+          if (turnEvents.pocketedQueen && nextQueenState !== 'on_board') {
+            returns.push({ type: 'queen' });
+            nextQueenState = 'on_board';
+            nextQueenCoveredBy = null;
+          }
+        }
+
+        // 2b. Чужая последняя фишка
+        if (currentOppScore + oppPocketed >= 9 && nextQueenState !== 'covered') {
+          isFoul = true;
+          oppPocketed -= 1; // Отменяем забивание этой фишки
+          returns.push({ type: 'coin', color: oppColor, count: 1 }); // Возвращаем чужую фишку на стол
+
           // Если королева была забита в этот же ход, она аннулируется
           if (turnEvents.pocketedQueen && nextQueenState !== 'on_board') {
             returns.push({ type: 'queen' });
@@ -435,12 +453,20 @@ export const useGameStore = create(
       let winner = null;
       let gameOverScore = 0;
       
-      if (ownColor && newScore[ownColor] === 9) {
-        winner = currentPlayer;
+      if (ownColor) {
         const oppColor = ownColor === 'white' ? 'black' : 'white';
-        const opponentCoinsLeft = 9 - newScore[oppColor];
-        const queenBonus = nextQueenCoveredBy === winner ? 3 : 0;
-        gameOverScore = opponentCoinsLeft + queenBonus;
+        if (newScore[ownColor] === 9) {
+          winner = currentPlayer;
+          const opponentCoinsLeft = 9 - newScore[oppColor];
+          const queenBonus = nextQueenCoveredBy === winner ? 3 : 0;
+          gameOverScore = opponentCoinsLeft + queenBonus;
+        } else if (newScore[oppColor] === 9) {
+          // Игрок забил последнюю фишку соперника при покрытой королеве! Соперник побеждает.
+          winner = currentPlayer === 1 ? 2 : 1;
+          const playerCoinsLeft = 9 - newScore[ownColor];
+          const queenBonus = nextQueenCoveredBy === winner ? 3 : 0;
+          gameOverScore = playerCoinsLeft + queenBonus;
+        }
       }
 
       set((draft) => {

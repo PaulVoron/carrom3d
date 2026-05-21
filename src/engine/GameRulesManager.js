@@ -501,7 +501,7 @@ export class GameRulesManager {
     entry.body.setEnabled(false);
     entry.mesh.visible = true;
     entry.mesh.quaternion.set(0, 0, 0, 1); // Сбрасываем поворот
-    entry.mesh.position.set(pos.x, 0.05, pos.z); // Ниже левитация (было 0.15)
+    entry.mesh.position.set(pos.x, 0.15, pos.z); // Восстанавливаем высоту 0.15 для плавного падения
 
     // [AUDIO] Звук появления штрафной фишки (не для Королевы)
     if (!isQueen) {
@@ -553,7 +553,7 @@ export class GameRulesManager {
       y: 0.005,
       duration: 0.8,
       ease: 'bounce.out'
-    });
+    }, "-=0.5"); // Начинает падать во время последних миганий
   }
 
   _validateInitialPlacement(player) {
