@@ -264,9 +264,8 @@ export class GameRulesManager {
       body.sleep();
       body.setEnabled(false);
       mesh.visible = false;
-      // [AUDIO] Физический звук + голосовое объявление
+      // [AUDIO] Физический звук
       this.audio.playPositional(mesh, 'sfx_coin_pocket_drop', 1.0);
-      this.audio.playVoice('voice_queen_pocketed');
       console.log('👑 Королева забита!');
     } else if (type === 'white' || type === 'black') {
       recordPocket(type);
@@ -274,11 +273,8 @@ export class GameRulesManager {
       body.sleep();
       body.setEnabled(false);
       mesh.visible = false;
-      // [AUDIO] Звук падения + 30% шанс на Wow
+      // [AUDIO] Звук падения
       this.audio.playPositional(mesh, 'sfx_coin_pocket_drop', 1.0);
-      if (Math.random() < 0.3) {
-        this.audio.playVoice('voice_wow');
-      }
       console.log(`🎯 ${type} фишка забита игроком ${currentPlayer}`);
     }
   }
@@ -332,12 +328,19 @@ export class GameRulesManager {
     const playerChanged    = prevPlayer !== nextPlayer;
     // ────────────────────────────────────────────────────────────────────────────
     
+    const assignedPositions = [];
     const returnsWithPos = returns.map(ret => {
-      if (ret.type === 'queen') return { ...ret, pos: this.physics.getFreePosition(true, this.coinRadius) };
+      if (ret.type === 'queen') {
+        const pos = this.physics.getFreePosition(true, this.coinRadius, assignedPositions);
+        assignedPositions.push({ x: pos.x, z: pos.z, r: this.coinRadius });
+        return { ...ret, pos };
+      }
       if (ret.type === 'coin') {
         const positions = [];
         for (let i = 0; i < ret.count; i++) {
-          positions.push(this.physics.getFreePosition(false, this.coinRadius));
+          const pos = this.physics.getFreePosition(false, this.coinRadius, assignedPositions);
+          assignedPositions.push({ x: pos.x, z: pos.z, r: this.coinRadius });
+          positions.push(pos);
         }
         return { ...ret, positions };
       }
@@ -379,6 +382,14 @@ export class GameRulesManager {
     } else {
       if (isFoulPre) {
         setTimeout(() => this.audio.playVoice('voice_foul'), 500);
+      } else {
+        if (te.pocketedQueen) {
+          this.audio.playVoice('voice_queen_pocketed');
+        } else if (te.pocketedWhite > 0 || te.pocketedBlack > 0) {
+          if (Math.random() < 0.3) {
+            this.audio.playVoice('voice_wow');
+          }
+        }
       }
       if (queenJustCovered) {
         this.audio.playVoice('voice_queen_covered');
@@ -389,7 +400,7 @@ export class GameRulesManager {
       }
       // Переход хода (только если ход реально перешёл)
       if (playerChanged && !postState.showColorSelection) {
-        this.audio.playGlobal('ui_turn_switch');
+        this.audio.playGlobal('ui_turn_switch', 0.3);
       }
     }
     // Сбрасываем флаг разбоя после первого хода

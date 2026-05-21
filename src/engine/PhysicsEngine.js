@@ -446,10 +446,11 @@ export class PhysicsEngine {
    * Найти свободную позицию для возврата фишки.
    * @param {boolean} isQueen 
    * @param {number} coinRadius 
+   * @param {Array<{x: number, z: number, r: number}>} additionalObstacles
    * @returns {{x: number, z: number}}
    */
-  getFreePosition(isQueen, coinRadius) {
-    const obstacles = [];
+  getFreePosition(isQueen, coinRadius, additionalObstacles = []) {
+    const obstacles = [...additionalObstacles];
     for (const entry of this.physicsBodies) {
       if (entry.body.isEnabled() || entry.mesh.visible) {
         const type = entry.mesh.userData.type;
