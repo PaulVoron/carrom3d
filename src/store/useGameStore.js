@@ -94,6 +94,9 @@ export const useGameStore = create(
     /** Флаг: инициализирована ли игра (показывать ли UI) */
     isReady: false,
 
+    /** Язык интерфейса и голосовой озвучки ('uk' | 'en') */
+    language: 'uk',
+
     // ── Сеть ───────────────────────────────────────────────────────────────
     /** @type {'local' | 'host' | 'client'} */
     networkMode: 'local',
@@ -158,6 +161,10 @@ export const useGameStore = create(
     /** Установить флаг анимации камеры */
     setCameraAnimating: (/** @type {boolean} */ animating) =>
       set((state) => { state.isCameraAnimating = animating; }),
+
+    /** Установить язык озвучки */
+    setLanguage: (/** @type {'uk' | 'en'} */ lang) =>
+      set((state) => { state.language = lang; }),
 
     /** Установить сетевой режим */
     setNetworkMode: (/** @type {'local' | 'host' | 'client'} */ mode) =>
@@ -485,3 +492,6 @@ export const getNetworkMode = () => useGameStore.getState().networkMode;
 
 /** Получить статус подключения */
 export const getConnectionStatus = () => useGameStore.getState().connectionStatus;
+
+/** Получить текущий язык озвучки */
+export const getLanguage = () => useGameStore.getState().language;

@@ -82,6 +82,24 @@ export class PhysicsEngine {
     /** Коллбэк: вызывается когда объект вылетел за пределы стола */
     this.onOutOfBounds = null;
     this.boardBounds = null;
+
+    // ── Аудио-коллизии (нативные события Rapier) ─────────────────────────
+
+    /**
+     * Коллбэк контактных сил.
+     * @type {((entry1: object|null, entry2: object|null, forceMag: number) => void) | null}
+     */
+    this.onContactForce = null;
+
+    /** @type {RAPIER.EventQueue | null} */
+    this.eventQueue = null;
+
+    /**
+     * Маппинг collider.handle → wall-sentinel entry.
+     * Заполняется в createBoardBodies().
+     * @type {Map<number, object>}
+     */
+    this._wallColliders = new Map();
   }
 
   // ─── Инициализация ──────────────────────────────────────────────────────────
@@ -93,6 +111,10 @@ export class PhysicsEngine {
     this.world.timestep = PHYSICS.fixedTimeStep;
     this.world.numSolverIterations = PHYSICS.solverIterations;
     this.world.integrationParameters.maxCcdSubsteps = PHYSICS.maxCcdSubsteps;
+
+    // Очередь событий для drainContactForceEvents
+    // autoDrain=true: необработанные события автоматически сбрасываются перед следующим step
+    this.eventQueue = new RAPIER.EventQueue(true);
   }
 
   // ─── Создание физических тел ────────────────────────────────────────────────
@@ -119,7 +141,10 @@ export class PhysicsEngine {
       .setMass(PHYSICS.massCoin)
       .setCollisionGroups(MASK_COIN_NORMAL);
 
-    this.world.createCollider(colliderDesc, body);
+    const collider = this.world.createCollider(colliderDesc, body);
+    // Включаем события контактных сил для аудиосистемы
+    collider.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
+    collider.setContactForceEventThreshold(0.01);
     return body;
   }
 
@@ -143,7 +168,10 @@ export class PhysicsEngine {
       .setMass(PHYSICS.massStriker)
       .setCollisionGroups(MASK_COIN_NORMAL);
 
-    this.world.createCollider(colliderDesc, body);
+    const collider = this.world.createCollider(colliderDesc, body);
+    // Биток тоже генерирует события контактных сил
+    collider.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
+    collider.setContactForceEventThreshold(0.01);
     return body;
   }
 
@@ -191,11 +219,17 @@ export class PhysicsEngine {
       RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt).setTranslation(minX - wt / 2, wy, cz),
       RAPIER.ColliderDesc.cuboid(wt / 2, wh, widthZ / 2 + wt).setTranslation(maxX + wt / 2, wy, cz),
     ];
+
+    // Сентинел для определения типа 'wall' в drainContactEvents
+    const wallSentinel = { mesh: { userData: { type: 'wall' } } };
     walls.forEach(w => {
-      this.world.createCollider(
+      const wc = this.world.createCollider(
         w.setFriction(0.1).setRestitution(PHYSICS.boardRestitution).setCollisionGroups(MASK_WALLS),
         floorBody
       );
+      wc.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
+      wc.setContactForceEventThreshold(0.01);
+      this._wallColliders.set(wc.handle, wallSentinel);
     });
 
     // Невидимая крышка
@@ -235,7 +269,10 @@ export class PhysicsEngine {
     let steps = 0;
     while (this._accumulator >= PHYSICS.fixedTimeStep && steps < PHYSICS.maxSubSteps) {
       this._clampAllSpeeds();
-      this.world.step();
+      // Передаём eventQueue: события генерируются внутри step
+      this.world.step(this.eventQueue);
+      // Сразу обрабатываем: с autoDrain=true события сбрасываются перед следующим step
+      this._drainContactEvents();
       steps++;
       this._accumulator -= PHYSICS.fixedTimeStep;
     }
@@ -265,6 +302,35 @@ export class PhysicsEngine {
         body.setLinvel({ x: vel.x * s, y: vel.y * s, z: vel.z * s }, true);
       }
     }
+  }
+
+  /**
+   * Дрейнит контактные силы из EventQueue и вызывает onContactForce.
+   * Необходимо вызывать CPAЗУ после world.step(), так как
+   * с autoDrain=true события сбрасываются перед следующим step.
+   * Пол (флор) и крыша не зарегистрированы в handleMap → null-проверка в onContactForce фильтрует их.
+   */
+  _drainContactEvents() {
+    if (!this.onContactForce || !this.eventQueue) return;
+
+    // Строим маппинг collider.handle → entry (только активные тела)
+    const handleMap = new Map();
+    for (const entry of this.physicsBodies) {
+      if (!entry.body.isEnabled()) continue;
+      const col = entry.body.collider(0);
+      if (col) handleMap.set(col.handle, entry);
+    }
+    // Добавляем борта (сентинел с type:'wall')
+    for (const [handle, wallEntry] of this._wallColliders) {
+      handleMap.set(handle, wallEntry);
+    }
+
+    this.eventQueue.drainContactForceEvents((event) => {
+      const entry1 = handleMap.get(event.collider1()) ?? null;
+      const entry2 = handleMap.get(event.collider2()) ?? null;
+      const force  = event.totalForceMagnitude();
+      this.onContactForce(entry1, entry2, force);
+    });
   }
 
   // ─── Лузы ────────────────────────────────────────────────────────────────────
@@ -549,6 +615,11 @@ export class PhysicsEngine {
   dispose() {
     this.physicsBodies = [];
     this.pocketCenters = [];
+    this._wallColliders.clear();
+    if (this.eventQueue) {
+      this.eventQueue.free?.();
+      this.eventQueue = null;
+    }
     if (this.world) {
       this.world.free?.();
       this.world = null;

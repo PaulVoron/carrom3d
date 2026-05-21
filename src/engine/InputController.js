@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { PHYSICS } from './PhysicsEngine.js';
 import { useGameStore } from '../store/useGameStore.js';
 import { networkManager } from './NetworkManager.js';
+import { audioManager } from './AudioManager.js';
 
 export const PLAYER_1_LINE_Z  =  0.25;
 export const PLAYER_2_LINE_Z  = -0.25;
@@ -29,6 +30,8 @@ export class InputController {
     this._strikerEntry  = null;
     this._strikerSpawnY = 0;
     this._gamePhase = 'PLACEMENT';
+    /** X-позиция предыдущего движения (для slide-звука) */
+    this._lastSlideX = null;
 
     /** Коллбэки (устанавливает GameOrchestrator) */
     this.onStrikerDrag = null;
@@ -100,6 +103,11 @@ export class InputController {
 
     if (this._gamePhase === 'PLACEMENT' && this._isDragging) {
       const x = THREE.MathUtils.clamp(hit.x, PLAYER_LINE_MIN_X, PLAYER_LINE_MAX_X);
+
+      // [AUDIO] Запускаем slide-звук при движении битка (идемпотентен)
+      audioManager.startSlide();
+      this._lastSlideX = x;
+
       if (this.onStrikerDrag) this.onStrikerDrag(x);
       
       if (useGameStore.getState().networkMode !== 'local') {
@@ -121,6 +129,9 @@ export class InputController {
     if (this._gamePhase === 'PLACEMENT' && this._isDragging) {
       this._isDragging = false;
       if (this._controls) this._controls.enabled = true;
+      // [AUDIO] Плавное затухание slide-звука (250ms)
+      audioManager.stopSlide(250);
+      this._lastSlideX = null;
     } else if (this._gamePhase === 'AIMING' && this._isAiming) {
       this._isAiming = false;
       if (this._controls) this._controls.enabled = true;

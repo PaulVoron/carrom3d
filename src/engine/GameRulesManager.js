@@ -12,6 +12,7 @@ import { MASK_COIN_NORMAL } from './PhysicsEngine.js';
 import { PLAYER_1_LINE_Z, PLAYER_2_LINE_Z } from './InputController.js';
 import { START_CAMERA_POSITION } from './3d-scene-settings.js';
 import { networkManager } from './NetworkManager.js';
+import { audioManager } from './AudioManager.js';
 import * as THREE from 'three';
 
 export class GameRulesManager {
@@ -24,6 +25,9 @@ export class GameRulesManager {
     this.physics = physicsEngine;
     this.render = renderCore;
     this.input = inputController;
+
+    /** @type {import('./AudioManager').AudioManager} — аудиосистема */
+    this.audio = audioManager;
 
     this._checkSleepFrameCount = 0;
 
@@ -38,7 +42,13 @@ export class GameRulesManager {
     this._lastPhase = 'PLACEMENT';
     this._lastCurrentPlayer = null;
 
+    /** Флаг первого удара (разбой): сбрасывается после первого _endTurn() */
+    this._isFirstStrike = true;
+
     this._setupNetworking();
+
+    // Подключаем аудио-коллбэк к физике (нативные Rapier CONTACT_FORCE_EVENTS)
+    this.physics.onContactForce = (e1, e2, f) => this._handleCollisionSound(e1, e2, f);
   }
 
   _setupNetworking() {
@@ -116,6 +126,15 @@ export class GameRulesManager {
     this.physics.restoreStriker(entry, resetPos);
     entry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
     entry.mesh.quaternion.set(0, 0, 0, 1);
+  }
+
+  /**
+   * Вызвать при старте новой игры.
+   * Сбрасывает флаг разбоя и воспроизводит приветственный голос.
+   */
+  startGame() {
+    this._isFirstStrike = true;
+    this.audio.playVoice('voice_start_game');
   }
 
   // ─── RAF-вызов ───────────────────────────────────────────────────────────────
@@ -233,6 +252,8 @@ export class GameRulesManager {
       body.setEnabled(false);
       mesh.visible = false;
       mesh.userData.pocketed = true;
+      // [AUDIO] Биток в лузу
+      this.audio.playPositional(mesh, 'sfx_striker_pocket_drop', 1.0);
       console.log('⚠️ Биток попал в лузу!');
     } else if (type === 'queen') {
       recordPocket('queen');
@@ -240,6 +261,9 @@ export class GameRulesManager {
       body.sleep();
       body.setEnabled(false);
       mesh.visible = false;
+      // [AUDIO] Физический звук + голосовое объявление
+      this.audio.playPositional(mesh, 'sfx_coin_pocket_drop', 1.0);
+      this.audio.playVoice('voice_queen_pocketed');
       console.log('👑 Королева забита!');
     } else if (type === 'white' || type === 'black') {
       recordPocket(type);
@@ -247,6 +271,11 @@ export class GameRulesManager {
       body.sleep();
       body.setEnabled(false);
       mesh.visible = false;
+      // [AUDIO] Звук падения + 30% шанс на Wow
+      this.audio.playPositional(mesh, 'sfx_coin_pocket_drop', 1.0);
+      if (Math.random() < 0.3) {
+        this.audio.playVoice('voice_wow');
+      }
       console.log(`🎯 ${type} фишка забита игроком ${currentPlayer}`);
     }
   }
@@ -278,11 +307,27 @@ export class GameRulesManager {
       return;
     }
 
+    // ── [AUDIO] Захват состояния ДО evaluateTurn (после него turnEvents сбрасываются) ────────
+    const preState      = useGameStore.getState();
+    const prevQueenState   = preState.queenState;
+    const prevPlayer       = preState.currentPlayer;
+    const te               = preState.turnEvents;
+    const isFoulPre        = te.isFoul;
+    const ownPocketed      = te.pocketedWhite + te.pocketedBlack; // для applause
+    // ────────────────────────────────────────────────────────────────────────────
+
     // Host or Local
-    const snapshot = this.physics.getSnapshot();
+    const snapshot    = this.physics.getSnapshot();
     const hitSomething = this._strikerHitSomething;
     
     const { nextPlayer, returns } = useGameStore.getState().evaluateTurn({ hitSomething });
+
+    // ── [AUDIO] Состояние ПОСЛЕ evaluateTurn ──────────────────────────────────────
+    const postState        = useGameStore.getState();
+    const winner           = postState.winner;
+    const queenJustCovered = prevQueenState !== 'covered' && postState.queenState === 'covered';
+    const playerChanged    = prevPlayer !== nextPlayer;
+    // ────────────────────────────────────────────────────────────────────────────
     
     const returnsWithPos = returns.map(ret => {
       if (ret.type === 'queen') return { ...ret, pos: this.physics.getFreePosition(true, this.coinRadius) };
@@ -320,6 +365,33 @@ export class GameRulesManager {
         }
       });
     }
+
+    // ── [AUDIO] Воспроизводим звуки по итогам хода ────────────────────────────────
+    if (winner) {
+      // Победа: аплодисменты + голос win/lose
+      this.audio.playGlobal('ui_applause');
+      const localRole = postState.localPlayerRole;
+      const isLocalWin = localRole === null || localRole === winner;
+      this.audio.playVoice(isLocalWin ? 'voice_you_win' : 'voice_you_lose');
+    } else {
+      if (isFoulPre) {
+        this.audio.playVoice('voice_foul');
+      }
+      if (queenJustCovered) {
+        this.audio.playVoice('voice_queen_covered');
+      }
+      // Аплодисменты: разбой (первый удар + хотя бы одна фишка) или 2+ фишки за удар
+      if ((this._isFirstStrike && ownPocketed > 0) || ownPocketed >= 2) {
+        this.audio.playGlobal('ui_applause');
+      }
+      // Переход хода (только если ход реально перешёл)
+      if (playerChanged && !postState.showColorSelection) {
+        this.audio.playGlobal('ui_turn_switch');
+      }
+    }
+    // Сбрасываем флаг разбоя после первого хода
+    if (this._isFirstStrike) this._isFirstStrike = false;
+    // ────────────────────────────────────────────────────────────────────────────
 
     this._executeEndTurnReturns(nextPlayer, returnsWithPos);
   }
@@ -416,6 +488,11 @@ export class GameRulesManager {
     entry.mesh.visible = true;
     entry.mesh.quaternion.set(0, 0, 0, 1); // Сбрасываем поворот
     entry.mesh.position.set(pos.x, 0.05, pos.z); // Ниже левитация (было 0.15)
+
+    // [AUDIO] Звук появления штрафной фишки (не для Королевы)
+    if (!isQueen) {
+      this.audio.playGlobal('ui_due_spawn');
+    }
     
     const originalMaterials = [];
     entry.mesh.traverse(c => {
@@ -510,6 +587,9 @@ export class GameRulesManager {
     const scaled = impulseVec.clone().multiplyScalar(0.5); // PHYSICS.strikerForce fallback
     this.physics.applyImpulse(this.strikerEntry.body, scaled);
 
+    // [AUDIO] Звук щелчка пальцем по битку
+    this.audio.playPositional(this.strikerEntry.mesh, 'sfx_strike', 1.0);
+
     useGameStore.getState().setGamePhase('MOVING');
     this.input.setGamePhase('MOVING');
     this._checkSleepFrameCount = 0;
@@ -560,7 +640,7 @@ export class GameRulesManager {
     });
   }
 
-  // ─── Анимация камеры ─────────────────────────────────────────────────────────
+  // ─── Анимация камеры ───────────────────────────────────────────────────────────────
 
   _rotateCameraForPlayer(player) {
     const { camera, controls } = this.render;
@@ -611,5 +691,63 @@ export class GameRulesManager {
         useGameStore.getState().setCameraAnimating(false);
       },
     });
+  }
+
+  // ─── Аудио коллизий ──────────────────────────────────────────────────────────
+
+  /**
+   * Обрабатывает событие контактной силы от PhysicsEngine.
+   * Вызывается из physics.onContactForce при каждом дрейне EventQueue.
+   *
+   * Логика определения звука:
+   *  - entry = null → пол или крыша (не зарегистрированы) → пропускаем
+   *  - один тип 'wall' + другой 'striker' → sfx_striker_wall_hit
+   *  - один тип 'wall' + другой coin/queen → sfx_coin_wall_hit
+   *  - оба coin/queen → sfx_coin_hit
+   *  - striker + coin → ничего (sfx_strike уже играет из shoot())
+   *
+   * @param {object|null} entry1
+   * @param {object|null} entry2
+   * @param {number}      force — totalForceMagnitude из Rapier
+   */
+  _handleCollisionSound(entry1, entry2, force) {
+    // Пол, крыша или неизвестный объект → нет звука
+    if (!entry1 || !entry2) return;
+
+    const t1 = entry1.mesh?.userData?.type;
+    const t2 = entry2.mesh?.userData?.type;
+    if (!t1 || !t2) return;
+
+    const isWall1 = t1 === 'wall';
+    const isWall2 = t2 === 'wall';
+
+    let soundKey  = null;
+    let soundEntry = entry1;
+
+    if (isWall1 || isWall2) {
+      // Один из объектов — борт
+      soundEntry = isWall1 ? entry2 : entry1;
+      const coinType = soundEntry.mesh.userData.type;
+
+      if (coinType === 'striker') {
+        soundKey = 'sfx_striker_wall_hit';
+      } else if (coinType === 'white' || coinType === 'black' || coinType === 'queen') {
+        soundKey = 'sfx_coin_wall_hit';
+      }
+    } else {
+      // Оба объекта — фишки или биток
+      const hasStriker = t1 === 'striker' || t2 === 'striker';
+      if (hasStriker) {
+        // Удар битка о фишку после разбоя.
+        // sfx_strike уже сыграл в shoot() — здесь молчим.
+        return;
+      }
+      // Фишка о фишку
+      soundKey  = 'sfx_coin_hit';
+      soundEntry = entry1;
+    }
+
+    if (!soundKey) return;
+    this.audio.playPositional(soundEntry.mesh, soundKey, force);
   }
 }

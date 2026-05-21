@@ -13,6 +13,7 @@ import { GameRulesManager } from '../engine/GameRulesManager.js';
 import { useGameStore } from '../store/useGameStore.js';
 import { DEBUG_MODE } from '../engine/3d-scene-settings.js';
 import { networkManager } from '../engine/NetworkManager.js';
+import { audioManager } from '../engine/AudioManager.js';
 
 export class GameOrchestrator {
   constructor() {
@@ -37,14 +38,26 @@ export class GameOrchestrator {
     // 2. Рендер (передаём onTick)
     this.render.init(canvas, () => this._tick());
 
-    // 3. Загружаем модель
+    // 3. Аудио: инициализируем сразу после render.init() пока у нас есть
+    //    camera и scene. preload() запускаем параллельно с loadModel —
+    //    SFX успеют загрузиться к первому удару.
+    audioManager.init(this.render.camera, this.render.scene);
+    const audioPreloadPromise = audioManager.preload();
+
+    // 4. Загружаем модель (параллельно с preload аудио)
     const model = await this.render.loadModel('/models/carrom-draco.glb');
     if (!model) return;
 
-    // 4. Настраиваем физические тела
+    // 5. Настраиваем физические тела
     this._setupPhysics(model);
 
-    // 5. Прогрев физики (усадка фишек)
+    // Включаем тени для монет/битка (программно созданные меши)
+    this.render.setupCoinShadows(this.physics.physicsBodies);
+
+    // Дожидаемся завершения предзагрузки аудио
+    await audioPreloadPromise;
+
+    // 6. Прогрев физики (усадка фишек)
     this.physics.warmup(240);
     this._syncAfterWarmup();
     this.initialSnapshot = this.physics.getSnapshot();
@@ -74,10 +87,13 @@ export class GameOrchestrator {
       this.rules.handleOutOfBounds(entry);
     };
 
-    // 9. Сигнализируем React, что готово (теперь это делает MainMenu)
+    // Сигнализируем React, что готово (теперь это делает MainMenu)
     // useGameStore.getState().setReady(true);
 
-    // 10. Начальная валидация позиции
+    // Стартовый голос: приветствие + инициализация флага разбоя
+    this.rules.startGame();
+
+    // Начальная валидация позиции
     this.rules._validateInitialPlacement(1);
 
     networkManager.on('RESTART_GAME', (data) => {
@@ -104,6 +120,8 @@ export class GameOrchestrator {
     this.rules._lastCurrentPlayer = null;
     this.input.setGamePhase('PLACEMENT');
     this.rules._validateInitialPlacement(useGameStore.getState().currentPlayer);
+    // Сбрасываем флаг разбоя и воспроизводим стартовый голос
+    this.rules.startGame();
   }
 
   // ─── RAF-тик ────────────────────────────────────────────────────────────────
@@ -351,6 +369,7 @@ export class GameOrchestrator {
     this.input.detach();
     this.render.dispose();
     this.physics.dispose();
+    audioManager.dispose();
     this._isStarted = false;
   }
 }

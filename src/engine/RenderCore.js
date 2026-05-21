@@ -172,12 +172,20 @@ export class RenderCore {
 
   _initControls(canvas) {
     this.controls = new OrbitControls(this.camera, canvas);
-    this.controls.maxPolarAngle = Math.PI / 2;
+
+    // ── Лимиты камеры ───────────────────────────────────────────────
+    // Не опускаться ниже горизонта (0.1 рад ≈ 5.7° запас)
+    this.controls.maxPolarAngle = Math.PI / 2 - 0.1;
+    // Азимутальный диапазон: ±40° (сохраняет удобный сектор без полного вращения)
+    this.controls.minAzimuthAngle = -Math.PI * 2 / 9; // ~-40°
+    this.controls.maxAzimuthAngle =  Math.PI * 2 / 9; // ~+40°
+    // Дистанция: 0.3 = детально, 2.5 = весь стол виден
+    this.controls.minDistance = 0.3;
+    this.controls.maxDistance = 2.5;
+
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.25;
     this.controls.enablePan = CONTROLS_ENABLE_PAN;
-    this.controls.maxDistance = 50;
-    this.controls.minDistance = 0.2;
     this.controls.enableZoom = true;
     this.controls.target.set(0, CONTROL_TARGET_POSITION_Y, 0);
 
@@ -198,7 +206,10 @@ export class RenderCore {
       this.dirLight = new THREE.DirectionalLight(0xffffff, DIRLIGHT_INTENSITY);
       this.dirLight.position.set(0, 12, 0.000001);
       this.dirLight.castShadow = true;
-      this.dirLight.shadow.bias = -0.001;
+      // ── Shadow bias: меньше абсолютное значение = меньше peter-panning ──
+      this.dirLight.shadow.bias = -0.0005;
+      // normalBias: предотвращает shadow acne на поверхности фишек
+      this.dirLight.shadow.normalBias = 0.02;
       const size = 3;
       this.dirLight.shadow.camera.left = -size;
       this.dirLight.shadow.camera.right = size;
@@ -206,10 +217,12 @@ export class RenderCore {
       this.dirLight.shadow.camera.bottom = -size;
       this.dirLight.shadow.camera.near = 0.5;
       this.dirLight.shadow.camera.far = 50;
-      const shadowSize = this._isLowPerf ? 1024 : 2048;
+      // 4096 даёт чёткие тени для малых фишек; на мобильных — 1024 (сбережём GPU)
+      const shadowSize = this._isLowPerf ? 1024 : 4096;
       this.dirLight.shadow.mapSize.set(shadowSize, shadowSize);
-      this.dirLight.shadow.radius = this._isLowPerf ? 10 : 20;
-      this.dirLight.shadow.blurSamples = this._isLowPerf ? 5 : 20;
+      // radius + blurSamples: значения для PCFSoftShadowMap
+      this.dirLight.shadow.radius = this._isLowPerf ? 4 : 8;
+      this.dirLight.shadow.blurSamples = this._isLowPerf ? 8 : 16;
       this._initialLightOffset.subVectors(this.dirLight.position, this.dirLight.target.position);
       this.scene.add(this.dirLight);
       this.scene.add(this.dirLight.target);
@@ -386,7 +399,9 @@ export class RenderCore {
     this.dirLight.target.updateMatrixWorld();
     this.dirLight.position.copy(center).add(this._initialLightOffset);
 
-    const cs = Math.max(size.x, size.z) / 2 * 1.5;
+    // Тайтеним фрустум до размера стола (×1.1 — 5% запас)
+    // Чем теснее frustum, тем выше плотность текселей на mapSize → чёткие тени фишек
+    const cs = Math.max(size.x, size.z) / 2 * 1.1;
     this.dirLight.shadow.camera.left = -cs;
     this.dirLight.shadow.camera.right = cs;
     this.dirLight.shadow.camera.top = cs;
@@ -414,6 +429,24 @@ export class RenderCore {
         mesh.position.set(p.x, p.y, p.z);
         mesh.quaternion.set(r.x, r.y, r.z, r.w);
       }
+    }
+  }
+
+  // ─── Утилиты для фишек и теней ───────────────────────────────────────────────
+
+  /**
+   * Включить отбрасывание / получение теней для программно созданных мешей фишек/битка.
+   * Вызывать после создания всех физических тел.
+   * @param {Array<{mesh: THREE.Object3D}>} entries
+   */
+  setupCoinShadows(entries) {
+    for (const { mesh } of entries) {
+      mesh.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow    = true;
+          child.receiveShadow = true;
+        }
+      });
     }
   }
 
