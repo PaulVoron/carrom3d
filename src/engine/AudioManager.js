@@ -229,9 +229,9 @@ class AudioManager {
    * @param {THREE.Object3D} mesh             — источник позиции (фишка / борт)
    * @param {string}         key              — ключ из SFX_MANIFEST
    * @param {number}         forceMag         — totalForceMagnitude из Rapier (0…∞)
-   * @param {number}         volumeMultiplier — множитель громкости (0.0…1.0)
+   * @param {number}         volumeMultiplier — множитель громкости
    */
-  playPositional(mesh, key, forceMag = 1.0, volumeMultiplier = 1.0) {
+  playPositional(mesh, key, forceMag = 1.0, volumeMultiplier = 10) {
     if (!this._listener || !this._initialized) return;
 
     const buffer = this._pickSfxBuffer(key);
