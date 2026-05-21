@@ -176,9 +176,7 @@ export class RenderCore {
     // ── Лимиты камеры ───────────────────────────────────────────────
     // Не опускаться ниже горизонта (0.1 рад ≈ 5.7° запас)
     this.controls.maxPolarAngle = Math.PI / 2 - 0.1;
-    // Азимутальный диапазон: ±40° (сохраняет удобный сектор без полного вращения)
-    this.controls.minAzimuthAngle = -Math.PI * 2 / 9; // ~-40°
-    this.controls.maxAzimuthAngle =  Math.PI * 2 / 9; // ~+40°
+    // Исходные лимиты будут установлены при первой смене игрока
     // Дистанция: 0.3 = детально, 2.5 = весь стол виден
     this.controls.minDistance = 0.3;
     this.controls.maxDistance = 2.5;
@@ -448,6 +446,18 @@ export class RenderCore {
         }
       });
     }
+  }
+
+  /**
+   * Установить ограничения угла камеры для текущего игрока.
+   * @param {number} player 1 или 2
+   */
+  setCameraAzimuthLimits(player) {
+    if (!this.controls) return;
+    const range = Math.PI * 2 / 9; // ±40°
+    const baseAngle = player === 1 ? 0 : Math.PI;
+    this.controls.minAzimuthAngle = baseAngle - range;
+    this.controls.maxAzimuthAngle = baseAngle + range;
   }
 
   dispose() {

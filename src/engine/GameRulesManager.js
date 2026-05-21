@@ -134,7 +134,10 @@ export class GameRulesManager {
    */
   startGame() {
     this._isFirstStrike = true;
-    this.audio.playVoice('voice_start_game');
+    // Голос запускается после того, как камера повернётся на позицию игрока (1.5s + 0.2s)
+    setTimeout(() => {
+      this.audio.playVoice('voice_start_game');
+    }, 1700);
   }
 
   // ─── RAF-вызов ───────────────────────────────────────────────────────────────
@@ -369,20 +372,20 @@ export class GameRulesManager {
     // ── [AUDIO] Воспроизводим звуки по итогам хода ────────────────────────────────
     if (winner) {
       // Победа: аплодисменты + голос win/lose
-      this.audio.playGlobal('ui_applause');
+      this.audio.playGlobal('ui_applause', 0.3);
       const localRole = postState.localPlayerRole;
       const isLocalWin = localRole === null || localRole === winner;
       this.audio.playVoice(isLocalWin ? 'voice_you_win' : 'voice_you_lose');
     } else {
       if (isFoulPre) {
-        this.audio.playVoice('voice_foul');
+        setTimeout(() => this.audio.playVoice('voice_foul'), 500);
       }
       if (queenJustCovered) {
         this.audio.playVoice('voice_queen_covered');
       }
       // Аплодисменты: разбой (первый удар + хотя бы одна фишка) или 2+ фишки за удар
       if ((this._isFirstStrike && ownPocketed > 0) || ownPocketed >= 2) {
-        this.audio.playGlobal('ui_applause');
+        this.audio.playGlobal('ui_applause', 0.3);
       }
       // Переход хода (только если ход реально перешёл)
       if (playerChanged && !postState.showColorSelection) {
@@ -570,6 +573,10 @@ export class GameRulesManager {
     this.input.setGamePhase('AIMING');
     this.physics.resetAccumulator();
     this.physics.makeStrikerDynamic(this.strikerEntry, currentPos);
+    
+    // [AUDIO] Звук на кнопку "Готовий до удару"
+    this.audio.playGlobal('sfx_strike_0');
+    
     console.log(`🎱 PLACEMENT → AIMING: биток на X=${currentPos.x.toFixed(3)}`);
   }
 
@@ -648,6 +655,10 @@ export class GameRulesManager {
 
     useGameStore.getState().setCameraAnimating(true);
     controls.enabled = false;
+    
+    // Снимаем лимиты перед анимацией, чтобы OrbitControls не блокировал вращение на 180
+    controls.minAzimuthAngle = -Infinity;
+    controls.maxAzimuthAngle = Infinity;
 
     const tx = player === 1 ? START_CAMERA_POSITION[0] : -START_CAMERA_POSITION[0];
     const ty = START_CAMERA_POSITION[1];
@@ -687,6 +698,7 @@ export class GameRulesManager {
       },
       onComplete: () => {
         controls.enabled = true;
+        this.render.setCameraAzimuthLimits(player);
         controls.update();
         useGameStore.getState().setCameraAnimating(false);
       },

@@ -104,8 +104,19 @@ export class InputController {
     if (this._gamePhase === 'PLACEMENT' && this._isDragging) {
       const x = THREE.MathUtils.clamp(hit.x, PLAYER_LINE_MIN_X, PLAYER_LINE_MAX_X);
 
-      // [AUDIO] Запускаем slide-звук при движении битка (идемпотентен)
-      audioManager.startSlide();
+      // [AUDIO] Звук шуршания только если биток реально сдвинулся
+      if (this._lastSlideX !== null) {
+        const dx = Math.abs(x - this._lastSlideX);
+        if (dx > 0.0005) {
+          audioManager.startSlide();
+          
+          // Если мышь остановилась, но не отпущена - звук затухает
+          if (this._slideStopTimeout) clearTimeout(this._slideStopTimeout);
+          this._slideStopTimeout = setTimeout(() => {
+            audioManager.stopSlide(150);
+          }, 100);
+        }
+      }
       this._lastSlideX = x;
 
       if (this.onStrikerDrag) this.onStrikerDrag(x);
@@ -130,6 +141,7 @@ export class InputController {
       this._isDragging = false;
       if (this._controls) this._controls.enabled = true;
       // [AUDIO] Плавное затухание slide-звука (250ms)
+      if (this._slideStopTimeout) clearTimeout(this._slideStopTimeout);
       audioManager.stopSlide(250);
       this._lastSlideX = null;
     } else if (this._gamePhase === 'AIMING' && this._isAiming) {

@@ -226,18 +226,19 @@ class AudioManager {
    * Воспроизвести позиционный звук удара.
    * Позиция звука = мировые координаты mesh.
    *
-   * @param {THREE.Object3D} mesh     — источник позиции (фишка / борт)
-   * @param {string}         key      — ключ из SFX_MANIFEST
-   * @param {number}         forceMag — totalForceMagnitude из Rapier (0…∞)
+   * @param {THREE.Object3D} mesh             — источник позиции (фишка / борт)
+   * @param {string}         key              — ключ из SFX_MANIFEST
+   * @param {number}         forceMag         — totalForceMagnitude из Rapier (0…∞)
+   * @param {number}         volumeMultiplier — множитель громкости (0.0…1.0)
    */
-  playPositional(mesh, key, forceMag = 1.0) {
+  playPositional(mesh, key, forceMag = 1.0, volumeMultiplier = 1.0) {
     if (!this._listener || !this._initialized) return;
 
     const buffer = this._pickSfxBuffer(key);
     if (!buffer) return;
 
     // Динамическая громкость: тихий удар → тихий звук
-    const volume = Math.min(Math.max(forceMag / MAX_FORCE_MAG, MIN_POSITIONAL_VOL), 1.0);
+    const volume = Math.min(Math.max(forceMag / MAX_FORCE_MAG, MIN_POSITIONAL_VOL), 1.0) * volumeMultiplier;
 
     const pa = this._getFreePositional();
 
@@ -253,9 +254,10 @@ class AudioManager {
 
   /**
    * Воспроизвести глобальный UI-звук (без позиции).
-   * @param {string} key — напр. 'ui_applause', 'ui_turn_switch'
+   * @param {string} key    — напр. 'ui_applause', 'ui_turn_switch'
+   * @param {number} volume — громкость от 0.0 до 1.0
    */
-  playGlobal(key) {
+  playGlobal(key, volume = 1.0) {
     if (!this._listener || !this._initialized) return;
 
     const buffer = this._buffers.get(key);
@@ -268,16 +270,17 @@ class AudioManager {
     const sound = this._globalSounds.get(key);
     if (sound.isPlaying) sound.stop();
     sound.setBuffer(buffer);
-    sound.setVolume(1.0);
+    sound.setVolume(volume);
     sound.play();
   }
 
   /**
    * Воспроизвести голосовой звук с учётом текущего языка.
    * Файлы загружаются лениво при первом обращении.
-   * @param {string} key — напр. 'voice_start_game', 'voice_foul'
+   * @param {string} key    — напр. 'voice_start_game', 'voice_foul'
+   * @param {number} volume — громкость от 0.0 до 1.0
    */
-  playVoice(key) {
+  playVoice(key, volume = 1.0) {
     if (!this._listener || !this._initialized) return;
 
     const lang = useGameStore.getState().language ?? 'uk';
@@ -295,7 +298,7 @@ class AudioManager {
       }
       if (this._voiceSound.isPlaying) this._voiceSound.stop();
       this._voiceSound.setBuffer(buffer);
-      this._voiceSound.setVolume(1.0);
+      this._voiceSound.setVolume(volume);
       this._voiceSound.play();
     };
 
