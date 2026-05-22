@@ -1,5 +1,6 @@
 import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
+import { useTranslation } from '../../i18n/translations';
 import styles from './ScoreBoard.module.scss';
 
 export const ScoreBoard = () => {
@@ -12,17 +13,19 @@ export const ScoreBoard = () => {
   const networkMode = useGameStore((state) => state.networkMode);
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
 
+  const { t } = useTranslation();
+
   const getPlayerLabel = (pId) => {
     const color = playerColors[`player${pId}`];
     let colorSuffix = '';
-    if (color === 'white') colorSuffix = ' (Білі)';
-    else if (color === 'black') colorSuffix = ' (Чорні)';
+    if (color === 'white') colorSuffix = t('score.colorWhite');
+    else if (color === 'black') colorSuffix = t('score.colorBlack');
 
     if (networkMode !== 'local' && localPlayerRole) {
-      const name = pId === localPlayerRole ? 'Ви' : 'Суперник';
+      const name = pId === localPlayerRole ? t('score.you') : t('score.opponent');
       return `${name}${colorSuffix}`;
     }
-    return `Гравець ${pId}${colorSuffix}`;
+    return `${t('score.player')} ${pId}${colorSuffix}`;
   };
 
   const getPlayerScore = (pId) => {
@@ -32,9 +35,9 @@ export const ScoreBoard = () => {
 
   const getTurnText = () => {
     if (networkMode !== 'local' && localPlayerRole) {
-      return currentPlayer === localPlayerRole ? 'Ваш хід' : 'Грає суперник';
+      return currentPlayer === localPlayerRole ? t('score.yourTurn') : t('score.opponentTurn');
     }
-    return `ХІД: ГРАВЕЦЬ ${currentPlayer}`;
+    return `${t('score.turnPlayer')} ${currentPlayer}`;
   };
 
   const renderQueenDot = (pId) => {

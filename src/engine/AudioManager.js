@@ -99,6 +99,15 @@ class AudioManager {
     /** @type {THREE.Audio | null} */
     this._voiceSound = null;
 
+    // ── Множители громкости (из стора) ───────────────────────────────────
+    this._volMaster = 1.0;
+    this._volSfx    = 1.0;
+    this._volVoice  = 1.0;
+    this._volUi     = 1.0;
+
+    /** @type {Function | null} Отписка от Zustand */
+    this._storeUnsub = null;
+
     this._initialized = false;
   }
 
@@ -132,6 +141,37 @@ class AudioManager {
     this._slideSound = new THREE.Audio(this._listener);
     this._slideSound.setLoop(true);
     this._slideSound.setVolume(0);
+
+    // ── Подписка на изменения громкости в Zustand ─────────────────────────
+    this._applyVolumeFromStore();
+    this._storeUnsub = useGameStore.subscribe(
+      (state) => state.settings.volume,
+      () => this._applyVolumeFromStore(),
+      { equalityFn: (a, b) =>
+          a.master === b.master &&
+          a.sfx    === b.sfx    &&
+          a.voice  === b.voice  &&
+          a.ui     === b.ui
+      }
+    );
+  }
+
+  /**
+   * Читает текущие значения громкости из стора и применяет их.
+   * Вызывается при инициализации и при каждом изменении стора.
+   * Не блокирует RAF — только устанавливает числа.
+   */
+  _applyVolumeFromStore() {
+    const { master, sfx, voice, ui } = useGameStore.getState().settings.volume;
+    this._volMaster = master;
+    this._volSfx    = sfx;
+    this._volVoice  = voice;
+    this._volUi     = ui;
+
+    // Применяем master к AudioListener (влияет на все THREE.Audio сразу)
+    if (this._listener) {
+      this._listener.setMasterVolume(master);
+    }
   }
 
   // ─── Предзагрузка ─────────────────────────────────────────────────────────
@@ -237,12 +277,12 @@ class AudioManager {
     const buffer = this._pickSfxBuffer(key);
     if (!buffer) return;
 
-    // Динамическая громкость: тихий удар → тихий звук
-    const volume = Math.min(Math.max(forceMag / MAX_FORCE_MAG, MIN_POSITIONAL_VOL), 1.0) * volumeMultiplier;
+    // Динамическая громкость с учётом sfx-множителя из настроек
+    const raw    = Math.min(Math.max(forceMag / MAX_FORCE_MAG, MIN_POSITIONAL_VOL), 1.0);
+    const volume = raw * volumeMultiplier * this._volSfx;
 
     const pa = this._getFreePositional();
 
-    // Выставляем позицию по мировым координатам меша
     if (mesh) {
       mesh.getWorldPosition(pa.position);
     }
@@ -270,8 +310,15 @@ class AudioManager {
     const sound = this._globalSounds.get(key);
     if (sound.isPlaying) sound.stop();
     sound.setBuffer(buffer);
-    sound.setVolume(volume);
-    sound.play();
+    // UI-звуки масштабируются на ui-множитель
+    sound.setVolume(volume * this._volUi);
+
+    const ctx = this._listener.context;
+    if (ctx && ctx.state !== 'running') {
+      ctx.resume().then(() => sound.play()).catch(() => {});
+    } else {
+      sound.play();
+    }
   }
 
   /**
@@ -281,36 +328,80 @@ class AudioManager {
    * @param {number} volume — громкость от 0.0 до 1.0
    */
   playVoice(key, volume = 1.0) {
-    if (!this._listener || !this._initialized) return;
+    console.log(`[AudioManager] playVoice called for key: "${key}" (volume: ${volume})`);
+    if (!this._listener) {
+      console.warn('[AudioManager] Cannot play voice: listener is null');
+      return;
+    }
+    if (!this._initialized) {
+      console.warn('[AudioManager] Cannot play voice: AudioManager is not initialized');
+      return;
+    }
 
+    // Язык читается прямо сейчас, чтобы смена языка в настройках сразу отражалась
+    // на следующем голосовом событии (даже в середине игры).
     const lang = useGameStore.getState().language ?? 'uk';
     const counts = VOICE_MANIFEST[key];
-    if (!counts) return;
+    if (!counts) {
+      console.warn(`[AudioManager] No manifest entry for voice key: "${key}"`);
+      return;
+    }
 
     const count = counts[lang] ?? counts['en'] ?? 1;
     const idx   = Math.floor(Math.random() * count);
     const cacheKey = `${lang}_${key}_${idx}`;
     const url      = `/audio/voice/${lang}/${key}_${idx}.ogg`;
 
+    console.log(`[AudioManager] Selected voice file: "${url}", cacheKey: "${cacheKey}"`);
+
     const _play = (buffer) => {
       if (!this._voiceSound) {
         this._voiceSound = new THREE.Audio(this._listener);
       }
-      if (this._voiceSound.isPlaying) this._voiceSound.stop();
+      if (this._voiceSound.isPlaying) {
+        console.log('[AudioManager] Voice sound is currently playing, stopping it first.');
+        this._voiceSound.stop();
+      }
       this._voiceSound.setBuffer(buffer);
-      this._voiceSound.setVolume(volume);
-      this._voiceSound.play();
+      
+      const finalVolume = volume * this._volVoice;
+      this._voiceSound.setVolume(finalVolume);
+      console.log(`[AudioManager] Set voice volume to: ${finalVolume} (multiplier: ${this._volVoice})`);
+
+      // WebAudio context может быть заморожен если play() вызывается
+      // сразу после первого пользовательского действия (браузерная политика).
+      // resume() — no-op если контекст уже running.
+      const ctx = this._listener.context;
+      if (ctx && ctx.state !== 'running') {
+        console.log(`[AudioManager] AudioContext state is "${ctx.state}". Resuming context...`);
+        ctx.resume()
+          .then(() => {
+            console.log('[AudioManager] AudioContext resumed, playing voice sound.');
+            this._voiceSound.play();
+          })
+          .catch((err) => {
+            console.error('[AudioManager] Failed to resume AudioContext:', err);
+          });
+      } else {
+        console.log('[AudioManager] AudioContext is running, playing voice sound.');
+        this._voiceSound.play();
+      }
     };
 
     if (this._buffers.has(cacheKey)) {
+      console.log(`[AudioManager] Playing voice from cache: "${cacheKey}"`);
       _play(this._buffers.get(cacheKey));
     } else {
-      // Lazy-load: загружаем и воспроизводим
+      console.log(`[AudioManager] Voice not in cache, loading from: "${url}"`);
       this._loader.load(
         url,
-        (buffer) => { this._buffers.set(cacheKey, buffer); _play(buffer); },
+        (buffer) => {
+          console.log(`[AudioManager] Successfully loaded voice: "${url}"`);
+          this._buffers.set(cacheKey, buffer);
+          _play(buffer);
+        },
         undefined,
-        () => console.warn(`[AudioManager] Voice missing: ${url}`)
+        (err) => console.warn(`[AudioManager] Voice missing or failed to load: ${url}`, err)
       );
     }
   }
@@ -385,6 +476,12 @@ class AudioManager {
     if (this._slideFadeTween) {
       this._slideFadeTween.kill();
       this._slideFadeTween = null;
+    }
+
+    // Отписываемся от Zustand
+    if (this._storeUnsub) {
+      this._storeUnsub();
+      this._storeUnsub = null;
     }
 
     // Убираем listener с камеры

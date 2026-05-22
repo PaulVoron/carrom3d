@@ -1,0 +1,365 @@
+// SettingsModal.module.scss
+// Glassmorphism-стилизация модального окна настроек
+
+@use '../../styles/variables' as *;
+
+// ── Переменные модуля ─────────────────────────────────────────────────────────
+
+$glass-bg:        rgba(15, 15, 22, 0.82);
+$glass-border:    rgba(255, 255, 255, 0.10);
+$glass-highlight: rgba(255, 255, 255, 0.05);
+$accent:          #4f8cff;
+$accent-glow:     rgba(79, 140, 255, 0.35);
+$accent-2:        #a78bfa;
+$text-primary:    #f1f1f5;
+$text-secondary:  #9090a0;
+$radius-lg:       20px;
+$radius-md:       12px;
+$radius-sm:       8px;
+
+// ── Backdrop ──────────────────────────────────────────────────────────────────
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.60);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: backdropIn 0.2s ease;
+
+  @keyframes backdropIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
+
+// ── Modal card ────────────────────────────────────────────────────────────────
+
+.modal {
+  position: relative;
+  width: min(520px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: $glass-bg;
+  border: 1px solid $glass-border;
+  border-radius: $radius-lg;
+  box-shadow:
+    0 0 0 1px $glass-highlight inset,
+    0 32px 80px rgba(0, 0, 0, 0.70),
+    0 0 60px rgba(79, 140, 255, 0.08);
+  padding: 28px 28px 24px;
+  animation: modalIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  // Полоса-блик сверху
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+    border-radius: 50%;
+  }
+
+  // Scrollbar
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+  &::-webkit-scrollbar        { width: 4px; }
+  &::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.15); border-radius: 2px; }
+  &::-webkit-scrollbar-track  { background: transparent; }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.92) translateY(12px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0);     }
+  }
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.title {
+  font-family: $font-primary;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: $text-primary;
+  letter-spacing: 0.02em;
+  margin: 0;
+  background: linear-gradient(135deg, #fff 30%, $accent 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.closeBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid $glass-border;
+  background: rgba(255,255,255,0.06);
+  color: $text-secondary;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+  line-height: 1;
+
+  &:hover {
+    background: rgba(255, 80, 80, 0.20);
+    color: #ff6b6b;
+    transform: rotate(90deg);
+  }
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid $glass-border;
+  border-radius: $radius-md;
+  padding: 4px;
+  margin-bottom: 24px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: $text-secondary;
+  font-family: $font-primary;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  letter-spacing: 0.02em;
+
+  &:hover:not(.tabActive) {
+    background: rgba(255,255,255,0.06);
+    color: $text-primary;
+  }
+}
+
+.tabActive {
+  background: linear-gradient(135deg, $accent 0%, $accent-2 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px $accent-glow;
+}
+
+// ── Tab content ───────────────────────────────────────────────────────────────
+
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeIn 0.18s ease;
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+}
+
+// ── Section title ─────────────────────────────────────────────────────────────
+
+.sectionTitle {
+  font-family: $font-primary;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: $text-secondary;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+// ── Divider ───────────────────────────────────────────────────────────────────
+
+.divider {
+  height: 1px;
+  background: $glass-border;
+  margin: 8px 0 4px;
+}
+
+// ── Volume Slider Row ─────────────────────────────────────────────────────────
+
+.sliderRow {
+  display: grid;
+  grid-template-columns: 140px 1fr 36px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.sliderLabel {
+  font-family: $font-primary;
+  font-size: 0.84rem;
+  color: $text-primary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sliderTrack {
+  position: relative;
+}
+
+.slider {
+  // Reset
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    $accent 0%,
+    $accent var(--pct, 100%),
+    rgba(255,255,255,0.12) var(--pct, 100%),
+    rgba(255,255,255,0.12) 100%
+  );
+  outline: none;
+  cursor: pointer;
+  transition: background 0.05s;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 2px $accent, 0 2px 8px rgba(0,0,0,0.5);
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+
+  &:hover::-webkit-slider-thumb,
+  &:focus::-webkit-slider-thumb {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 3px $accent, 0 2px 12px $accent-glow;
+  }
+
+  &::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: none;
+    box-shadow: 0 0 0 2px $accent;
+    cursor: pointer;
+  }
+}
+
+.sliderValue {
+  font-family: $font-primary;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: $accent;
+  text-align: right;
+  min-width: 30px;
+}
+
+// ── Language toggle ───────────────────────────────────────────────────────────
+
+.langToggle {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.langBtn {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid $glass-border;
+  border-radius: $radius-sm;
+  background: rgba(255,255,255,0.04);
+  color: $text-secondary;
+  font-family: $font-primary;
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+  letter-spacing: 0.02em;
+
+  &:hover:not(.langBtnActive) {
+    background: rgba(255,255,255,0.08);
+    color: $text-primary;
+    border-color: rgba(255,255,255,0.20);
+  }
+}
+
+.langBtnActive {
+  background: linear-gradient(135deg, $accent 0%, $accent-2 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 14px $accent-glow;
+  transform: translateY(-1px);
+}
+
+// ── Skin Select Row ───────────────────────────────────────────────────────────
+
+.skinRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+
+  &:last-child { border-bottom: none; }
+}
+
+.skinLabel {
+  font-family: $font-primary;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.skinButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skinBtn {
+  padding: 6px 14px;
+  border-radius: $radius-sm;
+  border: 1px solid $glass-border;
+  background: rgba(255,255,255,0.04);
+  color: $text-secondary;
+  font-family: $font-primary;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.16s;
+  white-space: nowrap;
+
+  &:hover:not(.skinBtnActive) {
+    background: rgba(255,255,255,0.09);
+    color: $text-primary;
+    border-color: rgba(255,255,255,0.20);
+    transform: translateY(-1px);
+  }
+}
+
+.skinBtnActive {
+  background: linear-gradient(135deg, rgba(79,140,255,0.25), rgba(167,139,250,0.18));
+  border-color: $accent;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(79, 140, 255, 0.20);
+}

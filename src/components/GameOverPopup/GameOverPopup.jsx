@@ -3,12 +3,14 @@ import { useGameStore } from '../../store/useGameStore';
 import styles from './GameOverPopup.module.scss';
 import { orchestrator } from '../../game/GameOrchestrator';
 import { networkManager } from '../../engine/NetworkManager';
+import { useTranslation } from '../../i18n/translations';
 
 export const GameOverPopup = () => {
   const winner = useGameStore((state) => state.winner);
   const gameOverScore = useGameStore((state) => state.gameOverScore);
   const networkMode = useGameStore((state) => state.networkMode);
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
+  const { t } = useTranslation();
   
   const handleRestart = () => {
     const state = useGameStore.getState();
@@ -28,17 +30,17 @@ export const GameOverPopup = () => {
   return (
     <div className={styles.overlay}>
       <div className={styles.popup}>
-        <div className={styles.title}>Гру закінчено!</div>
+        <div className={styles.title}>{t('gameover.title')}</div>
         <div className={styles.winnerText}>
           {networkMode !== 'local' && localPlayerRole
             ? winner === localPlayerRole
-              ? 'Ви перемогли!'
-              : 'Переміг суперник'
-            : `Переміг Гравець ${winner}`}
+              ? t('gameover.youWin')
+              : t('gameover.youLose')
+            : `${t('gameover.playerWins')} ${winner}`}
         </div>
-        <div className={styles.scoreText}>Рахунок: {gameOverScore}</div>
+        <div className={styles.scoreText}>{t('gameover.score')} {gameOverScore}</div>
         <button className={styles.newGameBtn} onClick={handleRestart}>
-          Нова гра
+          {t('gameover.newGame')}
         </button>
       </div>
     </div>

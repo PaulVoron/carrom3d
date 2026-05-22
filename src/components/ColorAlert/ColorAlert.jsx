@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
+import { useTranslation } from '../../i18n/translations';
 import styles from './ColorAlert.module.scss';
 
 export const ColorAlert = () => {
@@ -8,23 +9,31 @@ export const ColorAlert = () => {
   const mode = useGameStore(s => s.networkMode);
   const playerColors = useGameStore(s => s.playerColors);
   const localPlayerRole = useGameStore(s => s.localPlayerRole);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (trigger) {
-      const t = setTimeout(clearAlert, 4000);
-      return () => clearTimeout(t);
+      const timer = setTimeout(clearAlert, 4000);
+      return () => clearTimeout(timer);
     }
   }, [trigger, clearAlert]);
 
   if (!trigger) return null;
 
-  const myColor = mode === 'local' ? playerColors.player1 : (localPlayerRole === 1 ? playerColors.player1 : playerColors.player2);
-  const colorName = myColor === 'white' ? 'Білі' : 'Чорні';
-  const text = mode === 'local' ? `Гравцю 1 призначено: ${colorName}` : `Ваш колір: ${colorName}`;
+  const myColor = mode === 'local'
+    ? playerColors.player1
+    : (localPlayerRole === 1 ? playerColors.player1 : playerColors.player2);
+
+  let textKey;
+  if (mode === 'local') {
+    textKey = myColor === 'white' ? 'coloralert.player1White' : 'coloralert.player1Black';
+  } else {
+    textKey = myColor === 'white' ? 'coloralert.youWhite' : 'coloralert.youBlack';
+  }
 
   return (
     <div className={styles.overlay}>
-      <div className={styles.popup}>{text}</div>
+      <div className={styles.popup}>{t(textKey)}</div>
     </div>
   );
 };

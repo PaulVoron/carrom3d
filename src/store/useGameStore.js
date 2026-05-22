@@ -19,6 +19,55 @@
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { subscribeWithSelector } from 'zustand/middleware';
+
+
+// ─── LocalStorage Persistence (Settings Only) ─────────────────────────────────
+
+const SETTINGS_STORAGE_KEY = 'carrom3d_settings';
+
+/** Дефолтные настройки — используются если в localStorage нет данных */
+const DEFAULT_SETTINGS = {
+  volume: {
+    master: 1.0,
+    sfx:    1.0,
+    voice:  1.0,
+    ui:     1.0,
+  },
+  skins: {
+    boardTexture:   '/textures/board_default.jpg',
+    frameTexture:   '/textures/frame_default.jpg',
+    strikerTexture: '/textures/striker_default.jpg',
+    coinColorSet:   'default', // 'default' | 'golden' | 'classic'
+    environmentMap: '/hdr/default.hdr',
+  },
+};
+
+/** Загрузить настройки из localStorage (с fallback на дефолты) */
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_SETTINGS, language: 'uk' };
+    const parsed = JSON.parse(raw);
+    // Deep merge: сохраняем дефолты для отсутствующих ключей
+    return {
+      volume:   { ...DEFAULT_SETTINGS.volume, ...(parsed.volume ?? {}) },
+      skins:    { ...DEFAULT_SETTINGS.skins,  ...(parsed.skins  ?? {}) },
+      language: parsed.language ?? 'uk',
+    };
+  } catch {
+    return { ...DEFAULT_SETTINGS, language: 'uk' };
+  }
+}
+
+/** Сохранить настройки в localStorage */
+function saveSettings(settings) {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Нет доступа к localStorage (приватный режим и т.д.) — игнорируем
+  }
+}
 
 // ─── Константы ────────────────────────────────────────────────────────────────
 
@@ -39,7 +88,12 @@ const initialTurnEvents = () => ({
 // ─── Стор ─────────────────────────────────────────────────────────────────────
 
 export const useGameStore = create(
-  immer((set, get) => ({
+  subscribeWithSelector(
+    immer((set, get) => ({
+
+    // ── Настройки (строго локальные, не синхронизируются по сети) ──────────
+    /** Загружаем из localStorage при первом создании стора */
+    settings: loadSettings(),
 
     // ── Состояние игры ──────────────────────────────────────────────────────
     /** @type {GamePhase} */
@@ -95,7 +149,7 @@ export const useGameStore = create(
     isReady: false,
 
     /** Язык интерфейса и голосовой озвучки ('uk' | 'en') */
-    language: 'uk',
+    language: loadSettings().language ?? 'uk',
 
     // ── Сеть ───────────────────────────────────────────────────────────────
     /** @type {'local' | 'host' | 'client'} */
@@ -164,7 +218,24 @@ export const useGameStore = create(
 
     /** Установить язык озвучки */
     setLanguage: (/** @type {'uk' | 'en'} */ lang) =>
-      set((state) => { state.language = lang; }),
+      set((state) => {
+        state.language = lang;
+        // Сохраняем язык тоже в localStorage вместе с настройками
+        const s = get().settings;
+        saveSettings({ ...s, language: lang });
+      }),
+
+    /**
+     * Обновить одну настройку и сразу сохранить в localStorage.
+     * @param {'volume' | 'skins'} category
+     * @param {string} key
+     * @param {*} value
+     */
+    updateSetting: (category, key, value) =>
+      set((state) => {
+        state.settings[category][key] = value;
+        saveSettings({ ...state.settings, language: get().language });
+      }),
 
     /** Установить сетевой режим */
     setNetworkMode: (/** @type {'local' | 'host' | 'client'} */ mode) =>
@@ -492,7 +563,7 @@ export const useGameStore = create(
 
       return { nextPlayer, returns, showColorSelection: isColorTie && !isFoul };
     },
-  }))
+  })))
 );
 
 // ─── Вспомогательные геттеры для Vanilla JS ───────────────────────────────────
@@ -521,3 +592,6 @@ export const getConnectionStatus = () => useGameStore.getState().connectionStatu
 
 /** Получить текущий язык озвучки */
 export const getLanguage = () => useGameStore.getState().language;
+
+/** Получить текущие настройки (volume + skins) без подписки */
+export const getSettings = () => useGameStore.getState().settings;

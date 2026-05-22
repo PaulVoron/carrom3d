@@ -90,8 +90,10 @@ export class GameOrchestrator {
     // Сигнализируем React, что готово (теперь это делает MainMenu)
     // useGameStore.getState().setReady(true);
 
-    // Стартовый голос: приветствие + инициализация флага разбоя
-    this.rules.startGame();
+    // Стартовый голос воспроизводится ПОСЛЕ того, как игрок нажал кнопку в меню
+    // (т.е. после setReady(true)). До этого AudioContext заблокирован политикой браузера.
+    // Подписываемся на isReady: при первом переходе false → true вызываем startGame().
+    this._startGameOnReady();
 
     // Начальная валидация позиции
     this.rules._validateInitialPlacement(1);
@@ -109,6 +111,32 @@ export class GameOrchestrator {
         this.restartGame(nextStarter);
       }
     });
+  }
+
+  /**
+   * Вызывает rules.startGame() как только isReady переходит в true.
+   * Проверяем текущее значение сразу — подписка может пропустить уже
+   * установленное значение если оно было true ещё до subscribe().
+   */
+  _startGameOnReady() {
+    console.log('[GameOrchestrator] Initializing _startGameOnReady listener...');
+    // Если isReady уже true к моменту вызова — запускаем сразу
+    if (useGameStore.getState().isReady) {
+      console.log('[GameOrchestrator] isReady is already true, starting game immediately.');
+      this.rules.startGame();
+      return;
+    }
+
+    const unsub = useGameStore.subscribe(
+      (state) => state.isReady,
+      (isReady) => {
+        console.log('[GameOrchestrator] isReady changed:', isReady);
+        if (!isReady) return;
+        console.log('[GameOrchestrator] Unsubscribing and starting game...');
+        unsub();
+        this.rules.startGame();
+      }
+    );
   }
 
   restartGame(startingPlayer = null) {

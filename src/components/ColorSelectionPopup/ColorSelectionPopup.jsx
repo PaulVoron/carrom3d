@@ -1,6 +1,7 @@
 import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { networkManager } from '../../engine/NetworkManager';
+import { useTranslation } from '../../i18n/translations';
 import styles from './ColorSelectionPopup.module.scss';
 
 export const ColorSelectionPopup = () => {
@@ -9,6 +10,7 @@ export const ColorSelectionPopup = () => {
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
   const networkMode = useGameStore((state) => state.networkMode);
   const selectPlayerColor = useGameStore((state) => state.selectPlayerColor);
+  const { t } = useTranslation();
 
   if (!showColorSelection) return null;
 
@@ -30,37 +32,37 @@ export const ColorSelectionPopup = () => {
     }
   };
 
+  const opponentText = t('colorpick.opponentChoosing').replace('{n}', currentPlayer);
+
   return (
     <div className={styles.container}>
       <div className={styles.popup}>
-        <h3 className={styles.title}>Оберіть колір фішок</h3>
+        <h3 className={styles.title}>{t('colorpick.title')}</h3>
         <p className={styles.subtitle}>
-          {isMyTurn 
-            ? 'Ви забили однакову кількість білих та чорних фішок. Оберіть свій колір для цієї гри:' 
-            : `Гравець ${currentPlayer} обирає колір...`}
+          {isMyTurn ? t('colorpick.myTurn') : opponentText}
         </p>
 
         {isMyTurn ? (
           <div className={styles.buttonGroup}>
-            <button 
+            <button
               className={`${styles.colorBtn} ${styles.whiteBtn}`}
               onClick={() => handleSelect('white')}
             >
               <div className={styles.colorPreviewWhite} />
-              <span>Білі</span>
+              <span>{t('colorpick.white')}</span>
             </button>
-            <button 
+            <button
               className={`${styles.colorBtn} ${styles.blackBtn}`}
               onClick={() => handleSelect('black')}
             >
               <div className={styles.colorPreviewBlack} />
-              <span>Чорні</span>
+              <span>{t('colorpick.black')}</span>
             </button>
           </div>
         ) : (
           <div className={styles.loaderContainer}>
             <div className={styles.spinner} />
-            <span>Очікування вибору суперника</span>
+            <span>{t('colorpick.waiting')}</span>
           </div>
         )}
       </div>
