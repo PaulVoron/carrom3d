@@ -161,18 +161,17 @@ export class GameOrchestrator {
 
     // Физический шаг (только не в PLACEMENT)
     if (phase !== 'PLACEMENT') {
-      const steps = this.physics.tick();
-      if (steps > 0) {
-        this.physics.checkPockets();
-      }
+      this.physics.tick();
     }
 
     // Синхронизация мешей с физикой
-    this.render.syncBodies(
-      this.physics.physicsBodies,
-      this.rules.strikerEntry,
-      phase
-    );
+    if (this.physics.isActive) {
+      this.render.syncBodies(
+        this.physics.physicsBodies,
+        this.rules.strikerEntry,
+        phase
+      );
+    }
 
     // Логика правил (визуал прицеливания + проверка сна)
     this.rules.tick();

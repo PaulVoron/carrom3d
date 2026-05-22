@@ -7,7 +7,7 @@
 
 import gsap from 'gsap';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { useGameStore, recordPocket } from '../store/useGameStore.js';
+import { useGameStore, recordPocket, getIsLocalPhysicsActive } from '../store/useGameStore.js';
 import { MASK_COIN_NORMAL } from './PhysicsEngine.js';
 import { PLAYER_1_LINE_Z, PLAYER_2_LINE_Z } from './InputController.js';
 import { START_CAMERA_POSITION } from './3d-scene-settings.js';
@@ -50,10 +50,34 @@ export class GameRulesManager {
     // Подключаем аудио-коллбэк к физике (нативные Rapier CONTACT_FORCE_EVENTS)
     this.physics.onContactForce = (e1, e2, f) => this._handleCollisionSound(e1, e2, f);
     
+    this.physics.onFrameSync = (payload) => {
+      networkManager.send('SYNC_PHYSICS_FRAME', {
+        states: Array.from(payload.states),
+        sounds: payload.sounds
+      });
+    };
+
+    this.physics.onRemoteSound = (mesh, key, force) => {
+      setTimeout(() => {
+        if (mesh) {
+          this.audio.playPositional(mesh, key, force);
+        } else {
+          this.audio.playGlobal(key, force);
+        }
+      }, 50);
+    };
+
     this._lastColTimes = new Map();
   }
 
   _setupNetworking() {
+    networkManager.on('SYNC_PHYSICS_FRAME', (data) => {
+      const state = useGameStore.getState();
+      if (state.networkMode !== 'local' && state.localPlayerRole !== state.currentPlayer) {
+        this.physics.setTargetStates(data);
+      }
+    });
+
     networkManager.on('SYNC_PLACEMENT', (data) => {
       const { currentPlayer, networkMode } = useGameStore.getState();
       if (networkMode !== 'local') {
@@ -93,6 +117,22 @@ export class GameRulesManager {
         this.physics.applySnapshot(data.snapshot);
         useGameStore.getState().syncStoreState(data.storeState);
         this._executeEndTurnReturns(data.storeState.currentPlayer, data.returns);
+
+        if (data.audioEvents) {
+          data.audioEvents.forEach(e => {
+            const play = () => {
+              if (e.type === 'voice') this.audio.playVoice(e.key);
+              else if (e.type === 'global') this.audio.playGlobal(e.key, e.vol);
+            };
+            if (e.delay) setTimeout(play, e.delay);
+            else play();
+          });
+        }
+        
+        if (data.storeState.winner) {
+          const isLocalWin = localPlayerRole === null || localPlayerRole === data.storeState.winner;
+          this.audio.playVoice(isLocalWin ? 'voice_you_win' : 'voice_you_lose');
+        }
       }
     });
 
@@ -152,6 +192,8 @@ export class GameRulesManager {
   // ─── RAF-вызов ───────────────────────────────────────────────────────────────
 
   tick() {
+    this.physics.isActive = getIsLocalPhysicsActive();
+
     const phase = useGameStore.getState().gamePhase;
     const currentPlayer = useGameStore.getState().currentPlayer;
 
@@ -224,7 +266,7 @@ export class GameRulesManager {
       if (!this._strikerHitSomething) {
         for (const entry of this.physics.physicsBodies) {
           if (entry.mesh.userData.type === 'striker') continue;
-          if (!entry.body.isEnabled()) continue;
+          if (entry.body && !entry.body.isEnabled()) continue;
           
           const v = entry.body.linvel();
           const sq = v.x * v.x + v.y * v.y + v.z * v.z;
@@ -266,6 +308,9 @@ export class GameRulesManager {
       mesh.userData.pocketed = true;
       // [AUDIO] Биток в лузу
       this.audio.playPositional(mesh, 'sfx_striker_pocket_drop', 1.0);
+      if (this.physics.isActive) {
+        this.physics.frameSounds.push({ key: 'sfx_striker_pocket_drop', force: 1.0, id: mesh.userData.id });
+      }
       console.log('⚠️ Биток попал в лузу!');
     } else if (type === 'queen') {
       recordPocket('queen');
@@ -275,6 +320,9 @@ export class GameRulesManager {
       mesh.visible = false;
       // [AUDIO] Физический звук
       this.audio.playPositional(mesh, 'sfx_coin_pocket_drop', 1.0);
+      if (this.physics.isActive) {
+        this.physics.frameSounds.push({ key: 'sfx_coin_pocket_drop', force: 1.0, id: mesh.userData.id });
+      }
       console.log('👑 Королева забита!');
     } else if (type === 'white' || type === 'black') {
       recordPocket(type);
@@ -284,6 +332,9 @@ export class GameRulesManager {
       mesh.visible = false;
       // [AUDIO] Звук падения
       this.audio.playPositional(mesh, 'sfx_coin_pocket_drop', 1.0);
+      if (this.physics.isActive) {
+        this.physics.frameSounds.push({ key: 'sfx_coin_pocket_drop', force: 1.0, id: mesh.userData.id });
+      }
       console.log(`🎯 ${type} фишка забита игроком ${currentPlayer}`);
     }
   }
@@ -356,11 +407,39 @@ export class GameRulesManager {
       return ret;
     });
 
+    // ── [AUDIO] Собираем звуки по итогам хода ────────────────────────────────
+    const audioEvents = [];
+    if (winner) {
+      audioEvents.push({ type: 'global', key: 'ui_applause', vol: 0.3 });
+    } else {
+      if (isFoulPre) {
+        audioEvents.push({ type: 'voice', key: 'voice_foul', delay: 500 });
+      } else {
+        if (te.pocketedQueen) {
+          audioEvents.push({ type: 'voice', key: 'voice_queen_pocketed' });
+        } else if (te.pocketedWhite > 0 || te.pocketedBlack > 0) {
+          if (Math.random() < 0.3) {
+            audioEvents.push({ type: 'voice', key: 'voice_wow' });
+          }
+        }
+      }
+      if (queenJustCovered) {
+        audioEvents.push({ type: 'voice', key: 'voice_queen_covered' });
+      }
+      if ((this._isFirstStrike && ownPocketed > 0) || ownPocketed >= 2) {
+        audioEvents.push({ type: 'global', key: 'ui_applause', vol: 0.3 });
+      }
+      if (playerChanged && !postState.showColorSelection) {
+        audioEvents.push({ type: 'global', key: 'ui_turn_switch', vol: 0.3 });
+      }
+    }
+
     if (networkMode !== 'local') {
       const storeState = useGameStore.getState();
       networkManager.send('SYNC_TURN_RESULT', {
         snapshot,
         returns: returnsWithPos,
+        audioEvents,
         storeState: {
           gameId: storeState.gameId,
           score: storeState.score,
@@ -382,36 +461,20 @@ export class GameRulesManager {
       });
     }
 
-    // ── [AUDIO] Воспроизводим звуки по итогам хода ────────────────────────────────
+    // Проигрываем звуки локально
+    audioEvents.forEach(e => {
+      const play = () => {
+        if (e.type === 'voice') this.audio.playVoice(e.key);
+        else if (e.type === 'global') this.audio.playGlobal(e.key, e.vol);
+      };
+      if (e.delay) setTimeout(play, e.delay);
+      else play();
+    });
+
     if (winner) {
-      // Победа: аплодисменты + голос win/lose
-      this.audio.playGlobal('ui_applause', 0.3);
       const localRole = postState.localPlayerRole;
       const isLocalWin = localRole === null || localRole === winner;
       this.audio.playVoice(isLocalWin ? 'voice_you_win' : 'voice_you_lose');
-    } else {
-      if (isFoulPre) {
-        setTimeout(() => this.audio.playVoice('voice_foul'), 500);
-      } else {
-        if (te.pocketedQueen) {
-          this.audio.playVoice('voice_queen_pocketed');
-        } else if (te.pocketedWhite > 0 || te.pocketedBlack > 0) {
-          if (Math.random() < 0.3) {
-            this.audio.playVoice('voice_wow');
-          }
-        }
-      }
-      if (queenJustCovered) {
-        this.audio.playVoice('voice_queen_covered');
-      }
-      // Аплодисменты: разбой (первый удар + хотя бы одна фишка) или 2+ фишки за удар
-      if ((this._isFirstStrike && ownPocketed > 0) || ownPocketed >= 2) {
-        this.audio.playGlobal('ui_applause', 0.3);
-      }
-      // Переход хода (только если ход реально перешёл)
-      if (playerChanged && !postState.showColorSelection) {
-        this.audio.playGlobal('ui_turn_switch', 0.3);
-      }
     }
     // Сбрасываем флаг разбоя после первого хода
     if (this._isFirstStrike) this._isFirstStrike = false;
@@ -782,8 +845,8 @@ export class GameRulesManager {
 
     if (!soundKey) return;
 
-    const handle1 = entry1.body.handle;
-    const handle2 = entry2.body.handle;
+    const handle1 = entry1.body ? entry1.body.handle : 'wall1';
+    const handle2 = entry2.body ? entry2.body.handle : 'wall2';
     const pairKey = handle1 < handle2 ? `${handle1}_${handle2}` : `${handle2}_${handle1}`;
     const now = performance.now();
 
@@ -793,5 +856,13 @@ export class GameRulesManager {
     this._lastColTimes.set(pairKey, now);
 
     this.audio.playPositional(soundEntry.mesh, soundKey, force);
+
+    if (this.physics.isActive) {
+      this.physics.frameSounds.push({
+        key: soundKey,
+        force: force,
+        id: soundEntry.mesh.userData.id
+      });
+    }
   }
 }

@@ -8,6 +8,7 @@
  */
 
 import RAPIER from '@dimforge/rapier3d-compat';
+import * as THREE from 'three';
 
 // ─── Настройки физики ─────────────────────────────────────────────────────────
 
@@ -100,6 +101,24 @@ export class PhysicsEngine {
      * @type {Map<number, object>}
      */
     this._wallColliders = new Map();
+
+    /** @type {boolean} Активна ли локальная физика */
+    this.isActive = true;
+    
+    /** @type {((data: Float32Array) => void) | null} Коллбэк для синхронизации фреймов */
+    this.onFrameSync = null;
+
+    /** @type {Float32Array | null} Буфер целевых координат от активного игрока */
+    this.targetStates = null;
+
+    /** @type {Array} Временный массив для звуков коллизий в текущем кадре */
+    this.frameSounds = [];
+
+    /** @type {((mesh: THREE.Object3D|null, key: string, force: number) => void) | null} Коллбэк для удаленных звуков */
+    this.onRemoteSound = null;
+
+    // Временные объекты для интерполяции
+    this._tmpQuat = new THREE.Quaternion();
   }
 
   // ─── Инициализация ──────────────────────────────────────────────────────────
@@ -264,6 +283,33 @@ export class PhysicsEngine {
     const maxDelta = PHYSICS.fixedTimeStep * PHYSICS.maxSubSteps;
     if (frameDelta > maxDelta) frameDelta = maxDelta;
 
+    if (!this.isActive) {
+      // Режим марионетки (ожидающий игрок)
+      if (this.targetStates) {
+        for (let i = 0; i < this.physicsBodies.length; i++) {
+          const entry = this.physicsBodies[i];
+          const offset = i * 7;
+          if (offset + 6 < this.targetStates.length) {
+            const tx = this.targetStates[offset];
+            const ty = this.targetStates[offset + 1];
+            const tz = this.targetStates[offset + 2];
+            const qx = this.targetStates[offset + 3];
+            const qy = this.targetStates[offset + 4];
+            const qz = this.targetStates[offset + 5];
+            const qw = this.targetStates[offset + 6];
+
+            entry.mesh.position.x += (tx - entry.mesh.position.x) * 0.3;
+            entry.mesh.position.y += (ty - entry.mesh.position.y) * 0.3;
+            entry.mesh.position.z += (tz - entry.mesh.position.z) * 0.3;
+
+            this._tmpQuat.set(qx, qy, qz, qw);
+            entry.mesh.quaternion.slerp(this._tmpQuat, 0.3);
+          }
+        }
+      }
+      return 0;
+    }
+
     this._accumulator += frameDelta;
 
     let steps = 0;
@@ -278,13 +324,55 @@ export class PhysicsEngine {
       this._accumulator -= PHYSICS.fixedTimeStep;
     }
 
+    if (steps > 0) {
+      this.checkPockets();
+    }
+
+    // Если активный игрок
+    if (steps > 0 && this.onFrameSync) {
+      if (!this.areAllSleeping()) {
+        const syncData = new Float32Array(this.physicsBodies.length * 7);
+        for (let i = 0; i < this.physicsBodies.length; i++) {
+          const pos = this.physicsBodies[i].mesh.position;
+          const quat = this.physicsBodies[i].mesh.quaternion;
+          const offset = i * 7;
+          syncData[offset] = pos.x;
+          syncData[offset + 1] = pos.y;
+          syncData[offset + 2] = pos.z;
+          syncData[offset + 3] = quat.x;
+          syncData[offset + 4] = quat.y;
+          syncData[offset + 5] = quat.z;
+          syncData[offset + 6] = quat.w;
+        }
+        this.onFrameSync({ states: syncData, sounds: this.frameSounds });
+      }
+      this.frameSounds = []; // Очищаем массив после кадра
+    }
+
     return steps;
+  }
+
+  /**
+   * Обновить целевые состояния марионеток.
+   * @param {object} data - payload со states и sounds
+   */
+  setTargetStates(data) {
+    this.targetStates = data.states;
+
+    if (data.sounds && data.sounds.length > 0 && this.onRemoteSound) {
+      for (const sound of data.sounds) {
+        const entry = this.physicsBodies.find(e => e.mesh.userData.id === sound.id);
+        const mesh = entry ? entry.mesh : null;
+        this.onRemoteSound(mesh, sound.key, sound.force);
+      }
+    }
   }
 
   /** Сбросить аккумулятор (после паузы, смены фазы) */
   resetAccumulator() {
     this._lastTime = 0;
     this._accumulator = 0;
+    this.targetStates = null;
   }
 
   // ─── Скорости ────────────────────────────────────────────────────────────────

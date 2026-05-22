@@ -173,6 +173,9 @@ export const useGameStore = create(
     /** @type {string | null} */
     colorAssignmentAlert: null,
 
+    /** Является ли локальный игрок активным (считает физику) */
+    isLocalPhysicsActive: () => get().currentPlayer === get().localPlayerRole || get().networkMode === 'local',
+
     // ── Экшены ─────────────────────────────────────────────────────────────
 
     /** Инициализировать новую игру (жребий и сброс состояния) */
@@ -600,3 +603,6 @@ export const getLanguage = () => useGameStore.getState().language;
 
 /** Получить текущие настройки (volume + skins) без подписки */
 export const getSettings = () => useGameStore.getState().settings;
+
+/** Является ли локальный игрок активным (считает физику) */
+export const getIsLocalPhysicsActive = () => useGameStore.getState().isLocalPhysicsActive();
