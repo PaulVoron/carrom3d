@@ -12,8 +12,8 @@ import { audioManager } from './AudioManager.js';
 
 export const PLAYER_1_LINE_Z  =  0.25;
 export const PLAYER_2_LINE_Z  = -0.25;
-export const PLAYER_LINE_MIN_X = -0.20;
-export const PLAYER_LINE_MAX_X =  0.20;
+export const PLAYER_LINE_MIN_X = -0.218;
+export const PLAYER_LINE_MAX_X =  0.218;
 
 export class InputController {
   constructor() {

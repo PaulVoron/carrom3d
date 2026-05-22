@@ -391,8 +391,15 @@ export class RenderCore {
           o.material.envMapIntensity = ENVIRONMENT_MAP_INTENSITY;
           o.material.needsUpdate = true;
         }
+
+        
+        // if (o.material && o.material.name === 'board_surface') {
+        //   o.material.metalness = 1;
+        //   o.material.roughness = 0;
+        // }
       }
     });
+
 
     model.scale.set(1, 1, 1);
     model.position.y = MODEL_CENTER_POSITION;
@@ -617,7 +624,7 @@ export class RenderCore {
       directionalLightIntensity: DIRLIGHT_INTENSITY,
 
       dirLightPosX: 0,
-      dirLightPosY: 12,
+      dirLightPosY: 1.3,
       dirLightPosZ: 0.000001,
 
       ambientLightIntensity: AMBIENTLIGHT_INTENSITY,

@@ -44,9 +44,9 @@ export const PHYSICS = {
   pocketPullForce: 0.3,    // Сила, притягивающая фишку к центру лузы (эффект провала)
 
   // Цвета фишек
-  colorRed: 0xff0000,
+  colorRed: 0xCD533D,
   colorBlack: 0x444444,
-  colorWhite: 0xbbbbbb,
+  colorWhite: 0xDDC3AD,
 };
 
 // ─── Маски столкновений ───────────────────────────────────────────────────────

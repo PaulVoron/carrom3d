@@ -2,7 +2,7 @@
 
 //! ***************  3D SCENE SETTINGS ***************
 
-export const GUI_MODE_LIGHTING = true;
+export const GUI_MODE_LIGHTING = false;
 export const DEV_MODE_HELPERS = false;
 export const DEBUG_MODE = false; // Визуальный дебаг физических коллизий и триггерных зон луз
 
@@ -18,11 +18,11 @@ export const BACKGROUND_COLOR = 0xffffff; // 0xffffff (default);
 export const SHADOW_TRANSPARENCY = 0.125;
 export const TONE_MAPPING_EXPOSURE = 1.0; // 1.0 (default)
 
-export const ENVIRONMENT_MAP = '/environment/neutral.hdr'; // neutral.hdr (default)
+export const ENVIRONMENT_MAP = '/environment/brown_photostudio_07_1k.hdr'; // neutral.hdr (default)
 export const ENVIRONMENT_MAP_INTENSITY = 1.2;  //  1.0  (default)
 export const ENVIRONMENT_MAP_FLIP_X = false;   // false (default)
 export const ENVIRONMENT_MAP_ROTATEBLE = true; // false (default)
-export const ENVIRONMENT_MAP_ANGLE = 0;        //   0   (default)
+export const ENVIRONMENT_MAP_ANGLE = 180;       //   0   (default)
 
 export const ADD_DIRLIGHT = true;
 export const DIRLIGHT_INTENSITY = 0.9;
