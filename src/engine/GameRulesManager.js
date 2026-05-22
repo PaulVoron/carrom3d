@@ -49,6 +49,8 @@ export class GameRulesManager {
 
     // Подключаем аудио-коллбэк к физике (нативные Rapier CONTACT_FORCE_EVENTS)
     this.physics.onContactForce = (e1, e2, f) => this._handleCollisionSound(e1, e2, f);
+    
+    this._lastColTimes = new Map();
   }
 
   _setupNetworking() {
@@ -80,7 +82,14 @@ export class GameRulesManager {
     });
 
     networkManager.on('SYNC_TURN_RESULT', (data) => {
-      if (useGameStore.getState().networkMode === 'client') {
+      const { networkMode, localPlayerRole, currentPlayer, gameId } = useGameStore.getState();
+      
+      if (data.storeState.gameId !== gameId) {
+        console.log(`⚠️ Игнорируем устаревший SYNC_TURN_RESULT (gameId: ${data.storeState.gameId} != ${gameId})`);
+        return;
+      }
+
+      if (networkMode !== 'local' && localPlayerRole !== currentPlayer) {
         this.physics.applySnapshot(data.snapshot);
         useGameStore.getState().syncStoreState(data.storeState);
         this._executeEndTurnReturns(data.storeState.currentPlayer, data.returns);
@@ -299,10 +308,10 @@ export class GameRulesManager {
     console.log('🎱 Ход завершён → оцениваем...');
     this._checkSleepFrameCount = 0;
 
-    const { networkMode } = useGameStore.getState();
+    const { networkMode, localPlayerRole, currentPlayer } = useGameStore.getState();
     
-    if (networkMode === 'client') {
-      console.log('⏳ Ожидание SYNC_TURN_RESULT от хоста...');
+    if (networkMode !== 'local' && localPlayerRole !== currentPlayer) {
+      console.log('⏳ Ожидание SYNC_TURN_RESULT от активного игрока...');
       return;
     }
 
@@ -347,12 +356,13 @@ export class GameRulesManager {
       return ret;
     });
 
-    if (networkMode === 'host') {
+    if (networkMode !== 'local') {
       const storeState = useGameStore.getState();
       networkManager.send('SYNC_TURN_RESULT', {
         snapshot,
         returns: returnsWithPos,
         storeState: {
+          gameId: storeState.gameId,
           score: storeState.score,
           playerColors: storeState.playerColors,
           dueDebt: storeState.dueDebt,
@@ -771,6 +781,17 @@ export class GameRulesManager {
     }
 
     if (!soundKey) return;
+
+    const handle1 = entry1.body.handle;
+    const handle2 = entry2.body.handle;
+    const pairKey = handle1 < handle2 ? `${handle1}_${handle2}` : `${handle2}_${handle1}`;
+    const now = performance.now();
+
+    if (this._lastColTimes.has(pairKey)) {
+      if (now - this._lastColTimes.get(pairKey) < 100) return;
+    }
+    this._lastColTimes.set(pairKey, now);
+
     this.audio.playPositional(soundEntry.mesh, soundKey, force);
   }
 }

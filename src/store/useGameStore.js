@@ -96,6 +96,9 @@ export const useGameStore = create(
     settings: loadSettings(),
 
     // ── Состояние игры ──────────────────────────────────────────────────────
+    /** @type {number} */
+    gameId: 0,
+
     /** @type {GamePhase} */
     gamePhase: 'PLACEMENT',
 
@@ -175,6 +178,7 @@ export const useGameStore = create(
     /** Инициализировать новую игру (жребий и сброс состояния) */
     initGame: (forceStartingPlayer = null) =>
       set((state) => {
+        state.gameId += 1;
         const start = forceStartingPlayer || (Math.random() > 0.5 ? 1 : 2);
         state.currentPlayer = start;
         state.lastStartingPlayer = start;
@@ -257,6 +261,7 @@ export const useGameStore = create(
 
     /** Синхронизировать весь стор (используется Клиентом) */
     syncStoreState: (newState) => set((draft) => {
+      draft.gameId = newState.gameId;
       draft.score = newState.score;
       draft.playerColors = newState.playerColors;
       draft.dueDebt = newState.dueDebt;

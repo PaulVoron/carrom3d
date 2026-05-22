@@ -123,6 +123,7 @@ export class GameOrchestrator {
     // Если isReady уже true к моменту вызова — запускаем сразу
     if (useGameStore.getState().isReady) {
       console.log('[GameOrchestrator] isReady is already true, starting game immediately.');
+      this.rules._lastCurrentPlayer = null;
       this.rules.startGame();
       return;
     }
@@ -134,6 +135,7 @@ export class GameOrchestrator {
         if (!isReady) return;
         console.log('[GameOrchestrator] Unsubscribing and starting game...');
         unsub();
+        this.rules._lastCurrentPlayer = null;
         this.rules.startGame();
       }
     );

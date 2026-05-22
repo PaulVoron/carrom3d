@@ -27,10 +27,10 @@ export const PHYSICS = {
 
   maxPullDistance: 0.25,    // Максимальная дистанция оттяжки кия/мыши при прицеливании
   strikerForce: 0.5,       // Множитель силы удара по битку
-  solverIterations: 17,    // Количество итераций солвера Rapier3D (выше = точнее контакты)
+  solverIterations: 30,    // Количество итераций солвера Rapier3D (выше = точнее контакты)
 
   fixedTimeStep: 1 / 240,  // Фиксированный шаг симуляции (240Hz) для устранения прохождения сквозь стены
-  maxSubSteps: 8,          // Предельное число подшагов физики за один кадр рендеринга
+  maxSubSteps: 15,         // Предельное число подшагов физики за один кадр рендеринга
   maxCcdSubsteps: 6,       // Число подшагов CCD (Continuous Collision Detection) для быстролетящих тел
 
   maxLinearSpeed: 3.0,     // Ограничение максимальной скорости фишек для стабильности физики
@@ -269,6 +269,7 @@ export class PhysicsEngine {
     let steps = 0;
     while (this._accumulator >= PHYSICS.fixedTimeStep && steps < PHYSICS.maxSubSteps) {
       this._clampAllSpeeds();
+      this._updateDynamicMaterials();
       // Передаём eventQueue: события генерируются внутри step
       this.world.step(this.eventQueue);
       // Сразу обрабатываем: с autoDrain=true события сбрасываются перед следующим step
@@ -300,6 +301,28 @@ export class PhysicsEngine {
       if (sq > maxSq) {
         const s = maxSpeed / Math.sqrt(sq);
         body.setLinvel({ x: vel.x * s, y: vel.y * s, z: vel.z * s }, true);
+      }
+    }
+  }
+
+  _updateDynamicMaterials() {
+    for (const entry of this.physicsBodies) {
+      const body = entry.body;
+      if (!body.isEnabled() || body.bodyType() !== RAPIER.RigidBodyType.Dynamic) continue;
+
+      const rot = body.rotation();
+      // Вычисляем компоненту Y локального вектора "Вверх".
+      // Для кватерниона q, Y-компонента повернутого вектора (0, 1, 0) это: 1 - 2 * (q.x^2 + q.z^2)
+      const upY = 1 - 2 * (rot.x * rot.x + rot.z * rot.z);
+      
+      const collider = body.collider(0);
+      if (collider) {
+        // Если вектор сильно отклонен от вертикали (|upY| < 0.8 означает наклон больше ~36 градусов)
+        if (Math.abs(upY) < 0.8) {
+          collider.setRestitution(0.1); // Снижаем упругость (прыгучесть) на ребре
+        } else {
+          collider.setRestitution(PHYSICS.restitution); // Возвращаем нормальную упругость
+        }
       }
     }
   }
