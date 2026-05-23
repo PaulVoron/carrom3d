@@ -199,7 +199,7 @@ export const SettingsModal = ({ isOpen, onClose }) => {
                 className={`${styles.langBtn} ${language === 'en' ? styles.langBtnActive : ''}`}
                 onClick={() => setLanguage('en')}
               >
-                🇬🇧 {t('settings.langEn')}
+                🇺🇸 {t('settings.langEn')}
               </button>
             </div>
           </div>
