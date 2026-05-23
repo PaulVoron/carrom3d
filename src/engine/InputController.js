@@ -68,6 +68,10 @@ export class InputController {
     const mode = useGameStore.getState().networkMode;
     const player = useGameStore.getState().currentPlayer;
     const role = useGameStore.getState().localPlayerRole;
+    const gameMode = useGameStore.getState().gameMode;
+
+    if (gameMode === 'pve' && player === 2) return false;
+    
     if (mode === 'local') return true;
     if (mode !== 'local' && player === role) return true;
     return false;

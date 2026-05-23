@@ -12,6 +12,8 @@ export const ScoreBoard = () => {
 
   const networkMode = useGameStore((state) => state.networkMode);
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
+  const gameMode = useGameStore((state) => state.gameMode);
+  const botDifficulty = useGameStore((state) => state.botDifficulty);
 
   const { t } = useTranslation();
 
@@ -20,6 +22,11 @@ export const ScoreBoard = () => {
     let colorSuffix = '';
     if (color === 'white') colorSuffix = t('score.colorWhite');
     else if (color === 'black') colorSuffix = t('score.colorBlack');
+
+    if (gameMode === 'pve' && pId === 2) {
+      const difficultyText = botDifficulty === 1 ? t('bot.easy') : botDifficulty === 2 ? t('bot.medium') : t('bot.master');
+      return `Bot (${difficultyText})${colorSuffix}`;
+    }
 
     if (networkMode !== 'local' && localPlayerRole) {
       const name = pId === localPlayerRole ? t('score.you') : t('score.opponent');
@@ -34,6 +41,12 @@ export const ScoreBoard = () => {
   };
 
   const getTurnText = () => {
+    if (gameMode === 'pve') {
+      if (currentPlayer === 2) {
+        return t('bot.thinking');
+      }
+      return t('score.yourTurn');
+    }
     if (networkMode !== 'local' && localPlayerRole) {
       return currentPlayer === localPlayerRole ? t('score.yourTurn') : t('score.opponentTurn');
     }

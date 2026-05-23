@@ -19,11 +19,23 @@ export const MainMenu = ({ onOpenSettings }) => {
 
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
+  const [showBotOptions, setShowBotOptions] = useState(false);
+
+  const setGameMode = useGameStore((state) => state.setGameMode);
 
   const startLocalGame = () => {
+    setGameMode('pvp');
     setNetworkMode('local');
     setLocalPlayerRole(null);
     initGame();
+    setReady(true);
+  };
+
+  const startBotGame = (difficulty) => {
+    setGameMode('pve', difficulty);
+    setNetworkMode('local');
+    setLocalPlayerRole(1); // Set local player role to 1 for camera lock
+    initGame(); // initGame randomly assigns the starting player, bot has equal chance
     setReady(true);
   };
 
@@ -108,26 +120,41 @@ export const MainMenu = ({ onOpenSettings }) => {
           </div>
         ) : (
           <div className={styles.actions}>
-            <button className={styles.primaryButton} onClick={startLocalGame}>
-              {t('menu.localGame')}
-            </button>
-            <div className={styles.divider}>{t('menu.or')}</div>
-            <button className={styles.secondaryButton} onClick={createOnlineGame}>
-              {t('menu.createGame')}
-            </button>
-            <div className={styles.joinContainer}>
-              <input 
-                type="text" 
-                placeholder={t('menu.roomCodePlaceholder')}
-                value={joinCode}
-                onChange={e => setJoinCode(e.target.value.toUpperCase())}
-                className={styles.input}
-                maxLength={4}
-              />
-              <button className={styles.secondaryButton} onClick={joinOnlineGame}>
-                {t('menu.joinGame')}
-              </button>
-            </div>
+            {showBotOptions ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <h3 style={{ margin: '0 0 10px 0', textAlign: 'center', color: '#fff' }}>{t('bot.difficulty')}</h3>
+                <button className={styles.primaryButton} onClick={() => startBotGame(1)}>{t('bot.easy')}</button>
+                <button className={styles.primaryButton} onClick={() => startBotGame(2)}>{t('bot.medium')}</button>
+                <button className={styles.primaryButton} onClick={() => startBotGame(3)}>{t('bot.master')}</button>
+                <button className={styles.secondaryButton} onClick={() => setShowBotOptions(false)}>{t('menu.cancel')}</button>
+              </div>
+            ) : (
+              <>
+                <button className={styles.primaryButton} onClick={startLocalGame}>
+                  {t('menu.localGame')}
+                </button>
+                <button className={styles.primaryButton} onClick={() => setShowBotOptions(true)}>
+                  {t('bot.playVsBot')}
+                </button>
+                <div className={styles.divider}>{t('menu.or')}</div>
+                <button className={styles.secondaryButton} onClick={createOnlineGame}>
+                  {t('menu.createGame')}
+                </button>
+                <div className={styles.joinContainer}>
+                  <input 
+                    type="text" 
+                    placeholder={t('menu.roomCodePlaceholder')}
+                    value={joinCode}
+                    onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                    className={styles.input}
+                    maxLength={4}
+                  />
+                  <button className={styles.secondaryButton} onClick={joinOnlineGame}>
+                    {t('menu.joinGame')}
+                  </button>
+                </div>
+              </>
+            )}
             {error && <div className={styles.error}>{error}</div>}
           </div>
         )}

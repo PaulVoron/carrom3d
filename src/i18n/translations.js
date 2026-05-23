@@ -25,6 +25,14 @@ export const translations = {
     'menu.roomCode':        'Код кімнати:',
     'menu.cancel':          'Скасувати',
     'menu.connecting':      'Підключення...',
+    
+    // ── Бот ───────────────────────────────────────────────────────────────────
+    'bot.playVsBot':        'Грати проти Бота',
+    'bot.difficulty':       'Складність бота',
+    'bot.easy':             'Легкий',
+    'bot.medium':           'Середній',
+    'bot.master':           'Майстер',
+    'bot.thinking':         'Бот думає...',
 
     // ── ScoreBoard ────────────────────────────────────────────────────────────
     'score.player':         'Гравець',
@@ -123,6 +131,14 @@ export const translations = {
     'menu.roomCode':        'Room code:',
     'menu.cancel':          'Cancel',
     'menu.connecting':      'Connecting...',
+
+    // ── Bot ───────────────────────────────────────────────────────────────────
+    'bot.playVsBot':        'Play vs Bot',
+    'bot.difficulty':       'Bot Difficulty',
+    'bot.easy':             'Easy',
+    'bot.medium':           'Medium',
+    'bot.master':           'Master',
+    'bot.thinking':         'Bot is thinking...',
 
     // ── ScoreBoard ────────────────────────────────────────────────────────────
     'score.player':         'Player',

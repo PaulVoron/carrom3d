@@ -207,9 +207,11 @@ export class GameRulesManager {
 
     // ─── Инициализация камеры и битка (например, после жребия) ──────────────
     if (phase === 'PLACEMENT') {
-      const mode = useGameStore.getState().networkMode;
-      const role = useGameStore.getState().localPlayerRole;
-      const cameraPlayer = mode === 'local' ? currentPlayer : role;
+      const state = useGameStore.getState();
+      const mode = state.networkMode;
+      const role = state.localPlayerRole;
+      const isPvE = state.gameMode === 'pve';
+      const cameraPlayer = (mode === 'local' && !isPvE) ? currentPlayer : role;
 
       if (this._lastCurrentPlayer !== currentPlayer) {
         this._rotateCameraForPlayer(cameraPlayer);
@@ -486,9 +488,11 @@ export class GameRulesManager {
   _executeEndTurnReturns(nextPlayer, returns) {
     this._processReturns(returns, () => {
       // Поворачиваем камеру к следующему игроку после выставления штрафов
-      const mode = useGameStore.getState().networkMode;
-      const role = useGameStore.getState().localPlayerRole;
-      const cameraPlayer = mode === 'local' ? nextPlayer : role;
+      const state = useGameStore.getState();
+      const mode = state.networkMode;
+      const role = state.localPlayerRole;
+      const isPvE = state.gameMode === 'pve';
+      const cameraPlayer = (mode === 'local' && !isPvE) ? nextPlayer : role;
 
       if (this._lastCurrentPlayer !== nextPlayer) {
         this._rotateCameraForPlayer(cameraPlayer);

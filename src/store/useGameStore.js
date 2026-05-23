@@ -96,6 +96,12 @@ export const useGameStore = create(
     settings: loadSettings(),
 
     // ── Состояние игры ──────────────────────────────────────────────────────
+    /** @type {'pvp' | 'pve'} */
+    gameMode: 'pvp',
+
+    /** @type {1 | 2 | 3} (1: Easy, 2: Medium, 3: Master) */
+    botDifficulty: 1,
+
     /** @type {number} */
     gameId: 0,
 
@@ -202,6 +208,13 @@ export const useGameStore = create(
     /** Переключить фазу игры */
     setGamePhase: (/** @type {GamePhase} */ phase) =>
       set((state) => { state.gamePhase = phase; }),
+
+    /** Установить режим игры (PvP / PvE) */
+    setGameMode: (/** @type {'pvp'|'pve'} */ mode, /** @type {1|2|3} */ difficulty = 1) =>
+      set((state) => { 
+        state.gameMode = mode; 
+        state.botDifficulty = difficulty;
+      }),
 
     /** Задать текущего игрока */
     setCurrentPlayer: (/** @type {PlayerId} */ player) =>

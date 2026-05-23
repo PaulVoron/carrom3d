@@ -14,6 +14,7 @@ import { useGameStore } from '../store/useGameStore.js';
 import { DEBUG_MODE } from '../engine/3d-scene-settings.js';
 import { networkManager } from '../engine/NetworkManager.js';
 import { audioManager } from '../engine/AudioManager.js';
+import { AIBotManager } from '../engine/AIBotManager.js';
 
 export class GameOrchestrator {
   constructor() {
@@ -21,6 +22,7 @@ export class GameOrchestrator {
     this.render  = new RenderCore();
     this.input   = new InputController();
     this.rules   = new GameRulesManager(this.physics, this.render, this.input);
+    this.botManager = new AIBotManager(this);
     this._isStarted = false;
   }
 
@@ -399,6 +401,7 @@ export class GameOrchestrator {
     this.render.dispose();
     this.physics.dispose();
     audioManager.dispose();
+    this.botManager.dispose();
     this._isStarted = false;
   }
 }
