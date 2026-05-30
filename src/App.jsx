@@ -8,14 +8,21 @@ import { useGameStore } from './store/useGameStore';
 import { ColorAlert } from './components/ColorAlert/ColorAlert';
 import { ColorSelectionPopup } from './components/ColorSelectionPopup/ColorSelectionPopup';
 import { SettingsModal } from './components/SettingsModal/SettingsModal';
+import { useTranslation } from './i18n/translations';
 import './styles/global.scss';
 
 export const App = () => {
   const isReady = useGameStore((state) => state.isReady);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { t } = useTranslation();
 
   return (
     <>
+      {/* Заглушка для портретного режима (скрыта в landscape через CSS) */}
+      <div className="portrait-overlay" role="alert" aria-live="polite">
+        <div className="portrait-overlay__icon">📱</div>
+        <p className="portrait-overlay__text">{t('rotate.message')}</p>
+      </div>
       <GameCanvas />
 
       {/* SettingsModal доступен всегда — и в меню, и в игре */}

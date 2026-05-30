@@ -399,17 +399,25 @@ export class PhysicsEngine {
       if (!body.isEnabled() || body.bodyType() !== RAPIER.RigidBodyType.Dynamic) continue;
 
       const rot = body.rotation();
-      // Вычисляем компоненту Y локального вектора "Вверх".
-      // Для кватерниона q, Y-компонента повернутого вектора (0, 1, 0) это: 1 - 2 * (q.x^2 + q.z^2)
+      // Вычисляем компоненту Y локального вектора «Вверх».
+      // Для кватерниона q, Y-компонента повернутого вектора (0, 1, 0):
+      // 1 - 2 * (q.x^2 + q.z^2)
       const upY = 1 - 2 * (rot.x * rot.x + rot.z * rot.z);
-      
+
       const collider = body.collider(0);
       if (collider) {
-        // Если вектор сильно отклонен от вертикали (|upY| < 0.8 означает наклон больше ~36 градусов)
         if (Math.abs(upY) < 0.8) {
-          collider.setRestitution(0.1); // Снижаем упругость (прыгучесть) на ребре
+          // Объект стоит на ребре (наклон > ~36°):
+          // — снижаем упругость, чтобы он не отпрыгивал
+          // — резко увеличиваем затухание, чтобы он быстро остановился
+          collider.setRestitution(0.0);
+          body.setLinearDamping(4.0);
+          body.setAngularDamping(8.0);
         } else {
-          collider.setRestitution(PHYSICS.restitution); // Возвращаем нормальную упругость
+          // Нормальное положение — возвращаем штатные параметры
+          collider.setRestitution(PHYSICS.restitution);
+          body.setLinearDamping(PHYSICS.damping);
+          body.setAngularDamping(PHYSICS.damping);
         }
       }
     }

@@ -6,51 +6,64 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(2px);
+  // На маленьких экранах выравниваем по верху с отступом
+  @media (max-height: 600px) {
+    align-items: flex-start;
+    padding-top: 16px;
+  }
 }
 
 .popup {
-  background: rgba(25, 25, 35, 0.9);
+  background: rgba(25, 25, 35, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 40px;
+  padding: clamp(18px, 4vw, 40px);
   border-radius: 16px;
   text-align: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   color: #fff;
-  min-width: 300px;
+  min-width: min(300px, 90vw);
+  max-width: min(420px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  // Тонкий скроллбар
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+  &::-webkit-scrollbar       { width: 4px; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+  &::-webkit-scrollbar-track { background: transparent; }
   animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .title {
-  font-size: 24px;
+  font-size: clamp(16px, 4vw, 24px);
   font-weight: bold;
-  margin-bottom: 20px;
+  margin-bottom: clamp(10px, 2.5vh, 20px);
   color: #a8b0d3;
 }
 
 .winnerText {
-  font-size: 32px;
+  font-size: clamp(20px, 5vw, 32px);
   font-weight: 800;
-  margin-bottom: 10px;
+  margin-bottom: clamp(6px, 1.5vh, 10px);
   color: #4ade80;
 }
 
 .scoreText {
-  font-size: 20px;
-  margin-bottom: 30px;
+  font-size: clamp(14px, 3.5vw, 20px);
+  margin-bottom: clamp(16px, 3vh, 30px);
   color: #f1f5f9;
 }
 
-
 .newGameBtn {
   display: inline-block;
-  padding: 14px 42px;
-  font-size: 15px;
+  padding: clamp(10px, 2vh, 14px) clamp(24px, 5vw, 42px);
+  font-size: clamp(12px, 3vw, 15px);
   font-weight: 700;
   font-family: $font-secondary;
   letter-spacing: 0.06em;

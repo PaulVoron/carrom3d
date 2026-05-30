@@ -36,15 +36,34 @@ const SFX_MANIFEST = {
   ui_due_spawn:            { count: 1, indexed: false },
 };
 
-/** Количество вариантов голосовых файлов на каждый язык */
+/**
+ * Манифест голосовых реплик.
+ *
+ * Два паттерна на выбор:
+ *
+ * Паттерн A — count-based (авто-индекс):
+ *   Файлы именуются: /audio/voice/{lang}/{key}_{0,1,2,...}.ogg
+ *   Чтобы добавить вариант — просто бросьте файл и увеличьте count.
+ *   Пример: voice_wow: { en: { count: 3 }, uk: { count: 2 } }
+ *            → en: voice_wow_0.ogg, voice_wow_1.ogg, voice_wow_2.ogg
+ *
+ * Паттерн B — explicit files list:
+ *   Файлы именуются произвольно (без суффикса _N).
+ *   Пример: voice_wow: { en: { files: ['voice_wow_cool', 'voice_wow_epic'] }, uk: { count: 2 } }
+ *            → en: voice_wow_cool.ogg, voice_wow_epic.ogg (случайно)
+ *
+ * Совмещение: разные языки могут использовать разные паттерны.
+ *
+ * @type {Record<string, Record<string, {count?: number, files?: string[]}>>}
+ */
 const VOICE_MANIFEST = {
-  voice_foul:           { en: 2, uk: 2 },
-  voice_queen_covered:  { en: 2, uk: 2 },
-  voice_queen_pocketed: { en: 2, uk: 2 },
-  voice_start_game:     { en: 3, uk: 4 },
-  voice_wow:            { en: 2, uk: 2 },
-  voice_you_lose:       { en: 2, uk: 2 },
-  voice_you_win:        { en: 2, uk: 2 },
+  voice_foul:           { en: { count: 2 }, uk: { count: 2 } },
+  voice_queen_covered:  { en: { count: 2 }, uk: { count: 2 } },
+  voice_queen_pocketed: { en: { count: 2 }, uk: { count: 2 } },
+  voice_start_game:     { en: { count: 3 }, uk: { count: 4 } },
+  voice_wow:            { en: { count: 2 }, uk: { count: 2 } },
+  voice_you_lose:       { en: { count: 2 }, uk: { count: 2 } },
+  voice_you_win:        { en: { count: 2 }, uk: { count: 2 } },
 };
 
 // ─── Константы ────────────────────────────────────────────────────────────────
@@ -341,16 +360,29 @@ class AudioManager {
     // Язык читается прямо сейчас, чтобы смена языка в настройках сразу отражалась
     // на следующем голосовом событии (даже в середине игры).
     const lang = useGameStore.getState().language ?? 'uk';
-    const counts = VOICE_MANIFEST[key];
-    if (!counts) {
+    const manifestEntry = VOICE_MANIFEST[key];
+    if (!manifestEntry) {
       console.warn(`[AudioManager] No manifest entry for voice key: "${key}"`);
       return;
     }
 
-    const count = counts[lang] ?? counts['en'] ?? 1;
-    const idx   = Math.floor(Math.random() * count);
-    const cacheKey = `${lang}_${key}_${idx}`;
-    const url      = `/audio/voice/${lang}/${key}_${idx}.ogg`;
+    // Разрешаем языковую конфигурацию (с фолбэком на 'en')
+    const langConfig = manifestEntry[lang] ?? manifestEntry['en'] ?? { count: 1 };
+
+    // Выбираем случайный файл в зависимости от паттерна манифеста
+    let cacheKey, url;
+    if (Array.isArray(langConfig.files) && langConfig.files.length > 0) {
+      // Паттерн B: явный список файлов
+      const fileName = langConfig.files[Math.floor(Math.random() * langConfig.files.length)];
+      cacheKey = `${lang}_${fileName}`;
+      url      = `/audio/voice/${lang}/${fileName}.ogg`;
+    } else {
+      // Паттерн A: авто-индексация (key_0.ogg, key_1.ogg …)
+      const count = langConfig.count ?? 1;
+      const idx   = Math.floor(Math.random() * count);
+      cacheKey = `${lang}_${key}_${idx}`;
+      url      = `/audio/voice/${lang}/${key}_${idx}.ogg`;
+    }
 
     console.log(`[AudioManager] Selected voice file: "${url}", cacheKey: "${cacheKey}"`);
 

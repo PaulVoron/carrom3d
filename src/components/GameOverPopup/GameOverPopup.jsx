@@ -10,6 +10,7 @@ export const GameOverPopup = () => {
   const gameOverScore = useGameStore((state) => state.gameOverScore);
   const networkMode = useGameStore((state) => state.networkMode);
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
+  const isGameOverAnimating = useGameStore((state) => state.isGameOverAnimating);
   const { t } = useTranslation();
   
   const handleRestart = () => {
@@ -25,7 +26,8 @@ export const GameOverPopup = () => {
     }
   };
 
-  if (!winner) return null;
+  // Не показываем попап пока идёт кинематическая анимация камеры
+  if (!winner || isGameOverAnimating) return null;
 
   return (
     <div className={styles.overlay}>

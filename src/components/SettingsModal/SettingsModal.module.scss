@@ -42,7 +42,7 @@ $radius-sm:       8px;
 .modal {
   position: relative;
   width: min(520px, 94vw);
-  max-height: 88vh;
+  max-height: min(88vh, 600px);
   overflow-y: auto;
   overflow-x: hidden;
   background: $glass-bg;
@@ -52,7 +52,7 @@ $radius-sm:       8px;
     0 0 0 1px $glass-highlight inset,
     0 32px 80px rgba(0, 0, 0, 0.70),
     0 0 60px rgba(79, 140, 255, 0.08);
-  padding: 28px 28px 24px;
+  padding: clamp(16px, 3vw, 28px);
   animation: modalIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 
   // Полоса-блик сверху
@@ -84,12 +84,12 @@ $radius-sm:       8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 22px;
+  margin-bottom: clamp(12px, 2vh, 22px);
 }
 
 .title {
   font-family: $font-primary;
-  font-size: 1.35rem;
+  font-size: clamp(1rem, 3vw, 1.35rem);
   font-weight: 700;
   color: $text-primary;
   letter-spacing: 0.02em;
@@ -114,6 +114,7 @@ $radius-sm:       8px;
   justify-content: center;
   transition: background 0.15s, color 0.15s, transform 0.15s;
   line-height: 1;
+  flex-shrink: 0;
 
   &:hover {
     background: rgba(255, 80, 80, 0.20);
@@ -131,18 +132,18 @@ $radius-sm:       8px;
   border: 1px solid $glass-border;
   border-radius: $radius-md;
   padding: 4px;
-  margin-bottom: 24px;
+  margin-bottom: clamp(12px, 2vh, 24px);
 }
 
 .tab {
   flex: 1;
-  padding: 8px 12px;
+  padding: clamp(6px, 1.2vh, 8px) 12px;
   border: none;
   border-radius: $radius-sm;
   background: transparent;
   color: $text-secondary;
   font-family: $font-primary;
-  font-size: 0.82rem;
+  font-size: clamp(0.72rem, 2vw, 0.82rem);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.18s, color 0.18s, box-shadow 0.18s;
@@ -165,7 +166,7 @@ $radius-sm:       8px;
 .tabContent {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: clamp(6px, 1.5vh, 10px);
   animation: fadeIn 0.18s ease;
 
   @keyframes fadeIn {
@@ -199,15 +200,15 @@ $radius-sm:       8px;
 
 .sliderRow {
   display: grid;
-  grid-template-columns: 140px 1fr 36px;
+  grid-template-columns: clamp(90px, 28%, 140px) 1fr 36px;
   align-items: center;
-  gap: 12px;
-  padding: 6px 0;
+  gap: 8px;
+  padding: clamp(4px, 1vh, 6px) 0;
 }
 
 .sliderLabel {
   font-family: $font-primary;
-  font-size: 0.84rem;
+  font-size: clamp(0.72rem, 2vw, 0.84rem);
   color: $text-primary;
   white-space: nowrap;
   overflow: hidden;
@@ -283,13 +284,13 @@ $radius-sm:       8px;
 
 .langBtn {
   flex: 1;
-  padding: 10px 14px;
+  padding: clamp(7px, 1.5vh, 10px) 14px;
   border: 1px solid $glass-border;
   border-radius: $radius-sm;
   background: rgba(255,255,255,0.04);
   color: $text-secondary;
   font-family: $font-primary;
-  font-size: 0.86rem;
+  font-size: clamp(0.76rem, 2vw, 0.86rem);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.18s;
@@ -315,8 +316,8 @@ $radius-sm:       8px;
 .skinRow {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 0;
+  gap: clamp(4px, 1vh, 6px);
+  padding: clamp(5px, 1.2vh, 8px) 0;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 
   &:last-child { border-bottom: none; }
@@ -338,13 +339,13 @@ $radius-sm:       8px;
 }
 
 .skinBtn {
-  padding: 6px 14px;
+  padding: clamp(4px, 1vh, 6px) clamp(8px, 2vw, 14px);
   border-radius: $radius-sm;
   border: 1px solid $glass-border;
   background: rgba(255,255,255,0.04);
   color: $text-secondary;
   font-family: $font-primary;
-  font-size: 0.8rem;
+  font-size: clamp(0.7rem, 2vw, 0.8rem);
   cursor: pointer;
   transition: all 0.16s;
   white-space: nowrap;

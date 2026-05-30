@@ -154,6 +154,9 @@ export const useGameStore = create(
     /** Флаг: идёт ли анимация камеры */
     isCameraAnimating: false,
 
+    /** Флаг: анімація камери завершення гри */
+    isGameOverAnimating: false,
+
     /** Флаг: инициализирована ли игра (показывать ли UI) */
     isReady: false,
 
@@ -235,6 +238,10 @@ export const useGameStore = create(
     /** Установить флаг анимации камеры */
     setCameraAnimating: (/** @type {boolean} */ animating) =>
       set((state) => { state.isCameraAnimating = animating; }),
+
+    /** Установить флаг кинематической анимации Game Over */
+    setGameOverAnimating: (/** @type {boolean} */ animating) =>
+      set((state) => { state.isGameOverAnimating = animating; }),
 
     /** Установить язык озвучки */
     setLanguage: (/** @type {'uk' | 'en'} */ lang) =>

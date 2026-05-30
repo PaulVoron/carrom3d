@@ -10,6 +10,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import * as dat from 'dat.gui';
+import gsap from 'gsap';
 
 import {
   TONE_MAPPING_EXPOSURE,
@@ -482,6 +483,53 @@ export class RenderCore {
     const baseAngle = player === 1 ? 0 : Math.PI;
     this.controls.minAzimuthAngle = baseAngle - range;
     this.controls.maxAzimuthAngle = baseAngle + range;
+  }
+
+  /**
+   * Кинематическая анимация камеры при Game Over.
+   * Камера плавно поднимается в зенит (Top-Down вид над центром стола).
+   * OrbitControls блокируются на время анимации.
+   * @param {Function} onComplete — вызывается после завершения (~2 с)
+   */
+  animateCameraGameOver(onComplete) {
+    const { camera, controls } = this;
+    if (!camera || !controls) { onComplete?.(); return; }
+
+    // Блокируем управление камерой
+    controls.enabled = false;
+    controls.minAzimuthAngle = -Infinity;
+    controls.maxAzimuthAngle = Infinity;
+
+    // Целевая позиция: прямо над центром стола
+    // Высота подбирается так, чтобы стол (≈ 0.6 м) умещался в кадр при FOV 35°
+    const targetY    = 1.2;
+    const targetPos  = { x: 0, y: targetY, z: 0.001 };
+    const targetLook = { x: 0, y: 0, z: 0 };
+
+    // Анимируем position камеры (gsap уже импортирован статически в этом файле)
+    gsap.to(camera.position, {
+      x: targetPos.x,
+      y: targetPos.y,
+      z: targetPos.z,
+      duration: 2.0,
+      ease: 'power2.inOut',
+      onUpdate: () => controls.update(),
+      onComplete: () => {
+        controls.target.set(0, 0, 0);
+        controls.update();
+        onComplete?.();
+      },
+    });
+
+    // Плавно двигаем target к центру
+    gsap.to(controls.target, {
+      x: targetLook.x,
+      y: targetLook.y,
+      z: targetLook.z,
+      duration: 2.0,
+      ease: 'power2.inOut',
+      onUpdate: () => controls.update(),
+    });
   }
 
   dispose() {

@@ -23,3 +23,77 @@ user-select {
 .dg.ac {
   z-index: 9999 !important;
 }
+
+// ─── Portrait-Mode Overlay ─────────────────────────────────────────────────────
+
+.portrait-overlay {
+  // По умолчанию скрыт (landscape/desktop)
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(8, 8, 14, 0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  text-align: center;
+  padding: 32px;
+
+  &__icon {
+    font-size: 64px;
+    animation: portrait-rotate-hint 2.2s ease-in-out infinite;
+    filter: drop-shadow(0 0 24px rgba(79, 140, 255, 0.6));
+    will-change: transform;
+  }
+
+  &__text {
+    font-family: $font-primary;
+    font-size: clamp(14px, 4vw, 20px);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.5;
+    max-width: 320px;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+
+  // Показываем только в portrait-ориентации на мобильных
+  @media (orientation: portrait) and (max-width: 900px) {
+    display: flex;
+  }
+}
+
+@keyframes portrait-rotate-hint {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  40%       { transform: rotate(90deg) scale(1.1); }
+  60%       { transform: rotate(90deg) scale(1.1); }
+  80%       { transform: rotate(0deg) scale(1); }
+}
+
+// ─── Mobile Landscape Adjustments (≤ 768px width in landscape) ────────────────
+
+@media (max-width: 768px) and (orientation: landscape) {
+  // ScoreBoard — компактнее на маленьких экранах
+  [class*="scoreBoard"] {
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+  }
+
+  // Кнопка-шестерёнка — чуть меньше
+  #in-game-settings-btn {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 14px !important;
+    top: 8px !important;
+    right: 8px !important;
+  }
+
+  // ConfirmButton — не слишком большая
+  [class*="confirmButton"] {
+    font-size: 12px !important;
+    padding: 8px 18px !important;
+  }
+}

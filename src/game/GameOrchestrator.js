@@ -150,6 +150,7 @@ export class GameOrchestrator {
     }
     useGameStore.getState().initGame(startingPlayer);
     this.rules._lastCurrentPlayer = null;
+    this.rules._isEvaluating = false; // Сбрасываем флаг паузы при рестарте
     this.input.setGamePhase('PLACEMENT');
     this.rules._validateInitialPlacement(useGameStore.getState().currentPlayer);
     // Сбрасываем флаг разбоя и воспроизводим стартовый голос

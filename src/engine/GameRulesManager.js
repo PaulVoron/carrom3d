@@ -31,6 +31,9 @@ export class GameRulesManager {
 
     this._checkSleepFrameCount = 0;
 
+    /** Флаг: идёт ли оценка хода (пауза 1.5 с после остановки фишек) */
+    this._isEvaluating = false;
+
     /** Ссылка на биток {mesh, body} */
     this.strikerEntry = null;
     this.strikerSpawnY = 0;
@@ -282,7 +285,7 @@ export class GameRulesManager {
 
       this._checkSleepFrameCount++;
       if (this._checkSleepFrameCount % 30 === 0) {
-        if (this.physics.areAllSleeping()) {
+        if (!this._isEvaluating && this.physics.areAllSleeping()) {
           this._endTurn();
         }
       }
@@ -358,131 +361,144 @@ export class GameRulesManager {
   // ─── Завершение хода ─────────────────────────────────────────────────────────
 
   _endTurn() {
-    console.log('🎱 Ход завершён → оцениваем...');
+    if (this._isEvaluating) return;
+    this._isEvaluating = true;
+    console.log('🎱 Ход завершён → пауза 1.5 с, затем оцениваем...');
     this._checkSleepFrameCount = 0;
 
     const { networkMode, localPlayerRole, currentPlayer } = useGameStore.getState();
     
     if (networkMode !== 'local' && localPlayerRole !== currentPlayer) {
+      this._isEvaluating = false;
       console.log('⏳ Ожидание SYNC_TURN_RESULT от активного игрока...');
       return;
     }
 
-    // ── [AUDIO] Захват состояния ДО evaluateTurn (после него turnEvents сбрасываются) ────────
-    const preState      = useGameStore.getState();
-    const prevQueenState   = preState.queenState;
-    const prevPlayer       = preState.currentPlayer;
-    const te               = preState.turnEvents;
-    const isFoulPre        = te.isFoul;
-    const ownPocketed      = te.pocketedWhite + te.pocketedBlack; // для applause
+    // ── Захватываем состояние ДО паузы (turnEvents обнулятся в evaluateTurn) ──
+    const preState       = useGameStore.getState();
+    const prevQueenState = preState.queenState;
+    const prevPlayer     = preState.currentPlayer;
+    const te             = { ...preState.turnEvents };  // snapshot (не ссылка)
+    const isFoulPre      = te.isFoul;
+    const ownPocketed    = (te.pocketedWhite ?? 0) + (te.pocketedBlack ?? 0);
+    const hitSomething   = this._strikerHitSomething;
     // ────────────────────────────────────────────────────────────────────────────
 
-    // Host or Local
-    const snapshot    = this.physics.getSnapshot();
-    const hitSomething = this._strikerHitSomething;
-    
-    const { nextPlayer, returns } = useGameStore.getState().evaluateTurn({ hitSomething });
+    // Пауза 1.5 с: в это время phase=MOVING, биток на месте → игрок видит результат
+    setTimeout(() => {
+      this._isEvaluating = false;
 
-    // ── [AUDIO] Состояние ПОСЛЕ evaluateTurn ──────────────────────────────────────
-    const postState        = useGameStore.getState();
-    const winner           = postState.winner;
-    const queenJustCovered = prevQueenState !== 'covered' && postState.queenState === 'covered';
-    const playerChanged    = prevPlayer !== nextPlayer;
-    // ────────────────────────────────────────────────────────────────────────────
-    
-    const assignedPositions = [];
-    const returnsWithPos = returns.map(ret => {
-      if (ret.type === 'queen') {
-        const pos = this.physics.getFreePosition(true, this.coinRadius, assignedPositions);
-        assignedPositions.push({ x: pos.x, z: pos.z, r: this.coinRadius });
-        return { ...ret, pos };
-      }
-      if (ret.type === 'coin') {
-        const positions = [];
-        for (let i = 0; i < ret.count; i++) {
-          const pos = this.physics.getFreePosition(false, this.coinRadius, assignedPositions);
+      // Host / Local: вычисляем исход хода ПОСЛЕ паузы
+      const snapshot                       = this.physics.getSnapshot();
+      const { nextPlayer, returns }        = useGameStore.getState().evaluateTurn({ hitSomething });
+
+      // ── Состояние ПОСЛЕ evaluateTurn ─────────────────────────────────────────
+      const postState        = useGameStore.getState();
+      const winner           = postState.winner;
+      const queenJustCovered = prevQueenState !== 'covered' && postState.queenState === 'covered';
+      const playerChanged    = prevPlayer !== nextPlayer;
+      // ────────────────────────────────────────────────────────────────────────────
+
+      const assignedPositions = [];
+      const returnsWithPos = returns.map(ret => {
+        if (ret.type === 'queen') {
+          const pos = this.physics.getFreePosition(true, this.coinRadius, assignedPositions);
           assignedPositions.push({ x: pos.x, z: pos.z, r: this.coinRadius });
-          positions.push(pos);
+          return { ...ret, pos };
         }
-        return { ...ret, positions };
-      }
-      return ret;
-    });
+        if (ret.type === 'coin') {
+          const positions = [];
+          for (let i = 0; i < ret.count; i++) {
+            const pos = this.physics.getFreePosition(false, this.coinRadius, assignedPositions);
+            assignedPositions.push({ x: pos.x, z: pos.z, r: this.coinRadius });
+            positions.push(pos);
+          }
+          return { ...ret, positions };
+        }
+        return ret;
+      });
 
-    // ── [AUDIO] Собираем звуки по итогам хода ────────────────────────────────
-    const audioEvents = [];
-    if (winner) {
-      audioEvents.push({ type: 'global', key: 'ui_applause', vol: 0.3 });
-    } else {
-      if (isFoulPre) {
-        audioEvents.push({ type: 'voice', key: 'voice_foul', delay: 500 });
+      // ── Собираем звуки по итогам хода ────────────────────────────────────────
+      const audioEvents = [];
+      if (winner) {
+        audioEvents.push({ type: 'global', key: 'ui_applause', vol: 0.3 });
       } else {
-        if (te.pocketedQueen) {
-          audioEvents.push({ type: 'voice', key: 'voice_queen_pocketed' });
-        } else if (te.pocketedWhite > 0 || te.pocketedBlack > 0) {
-          if (Math.random() < 0.3) {
-            audioEvents.push({ type: 'voice', key: 'voice_wow' });
+        if (isFoulPre) {
+          audioEvents.push({ type: 'voice', key: 'voice_foul', delay: 500 });
+        } else {
+          if (te.pocketedQueen) {
+            audioEvents.push({ type: 'voice', key: 'voice_queen_pocketed' });
+          } else if (te.pocketedWhite > 0 || te.pocketedBlack > 0) {
+            if (Math.random() < 0.3) {
+              audioEvents.push({ type: 'voice', key: 'voice_wow' });
+            }
           }
         }
-      }
-      if (queenJustCovered) {
-        audioEvents.push({ type: 'voice', key: 'voice_queen_covered' });
-      }
-      if ((this._isFirstStrike && ownPocketed > 0) || ownPocketed >= 2) {
-        audioEvents.push({ type: 'global', key: 'ui_applause', vol: 0.3 });
-      }
-      if (playerChanged && !postState.showColorSelection) {
-        audioEvents.push({ type: 'global', key: 'ui_turn_switch', vol: 0.3 });
-      }
-    }
-
-    if (networkMode !== 'local') {
-      const storeState = useGameStore.getState();
-      networkManager.send('SYNC_TURN_RESULT', {
-        snapshot,
-        returns: returnsWithPos,
-        audioEvents,
-        storeState: {
-          gameId: storeState.gameId,
-          score: storeState.score,
-          playerColors: storeState.playerColors,
-          dueDebt: storeState.dueDebt,
-          queenState: storeState.queenState,
-          queenCoveredBy: storeState.queenCoveredBy,
-          winner: storeState.winner,
-          gameOverScore: storeState.gameOverScore,
-          consecutiveMisses: storeState.consecutiveMisses,
-          currentPlayer: storeState.currentPlayer,
-          turnEvents: storeState.turnEvents,
-          gamePhase: storeState.gamePhase,
-          lastStartingPlayer: storeState.lastStartingPlayer,
-          colorAssignmentAlert: storeState.colorAssignmentAlert,
-          showColorSelection: storeState.showColorSelection,
-          isPlacementBlocked: storeState.isPlacementBlocked
+        if (queenJustCovered) {
+          audioEvents.push({ type: 'voice', key: 'voice_queen_covered' });
         }
+        if ((this._isFirstStrike && ownPocketed > 0) || ownPocketed >= 2) {
+          audioEvents.push({ type: 'global', key: 'ui_applause', vol: 0.3 });
+        }
+        if (playerChanged && !postState.showColorSelection) {
+          audioEvents.push({ type: 'global', key: 'ui_turn_switch', vol: 0.3 });
+        }
+      }
+
+      if (networkMode !== 'local') {
+        const storeState = useGameStore.getState();
+        networkManager.send('SYNC_TURN_RESULT', {
+          snapshot,
+          returns: returnsWithPos,
+          audioEvents,
+          storeState: {
+            gameId: storeState.gameId,
+            score: storeState.score,
+            playerColors: storeState.playerColors,
+            dueDebt: storeState.dueDebt,
+            queenState: storeState.queenState,
+            queenCoveredBy: storeState.queenCoveredBy,
+            winner: storeState.winner,
+            gameOverScore: storeState.gameOverScore,
+            consecutiveMisses: storeState.consecutiveMisses,
+            currentPlayer: storeState.currentPlayer,
+            turnEvents: storeState.turnEvents,
+            gamePhase: storeState.gamePhase,
+            lastStartingPlayer: storeState.lastStartingPlayer,
+            colorAssignmentAlert: storeState.colorAssignmentAlert,
+            showColorSelection: storeState.showColorSelection,
+            isPlacementBlocked: storeState.isPlacementBlocked
+          }
+        });
+      }
+
+      // Проигрываем звуки локально
+      audioEvents.forEach(e => {
+        const play = () => {
+          if (e.type === 'voice') this.audio.playVoice(e.key);
+          else if (e.type === 'global') this.audio.playGlobal(e.key, e.vol);
+        };
+        if (e.delay) setTimeout(play, e.delay);
+        else play();
       });
-    }
 
-    // Проигрываем звуки локально
-    audioEvents.forEach(e => {
-      const play = () => {
-        if (e.type === 'voice') this.audio.playVoice(e.key);
-        else if (e.type === 'global') this.audio.playGlobal(e.key, e.vol);
-      };
-      if (e.delay) setTimeout(play, e.delay);
-      else play();
-    });
+      if (winner) {
+        const localRole  = postState.localPlayerRole;
+        const isLocalWin = localRole === null || localRole === winner;
+        this.audio.playVoice(isLocalWin ? 'voice_you_win' : 'voice_you_lose');
 
-    if (winner) {
-      const localRole = postState.localPlayerRole;
-      const isLocalWin = localRole === null || localRole === winner;
-      this.audio.playVoice(isLocalWin ? 'voice_you_win' : 'voice_you_lose');
-    }
-    // Сбрасываем флаг разбоя после первого хода
-    if (this._isFirstStrike) this._isFirstStrike = false;
-    // ────────────────────────────────────────────────────────────────────────────
+        // Кинематическая камера при завершении игры
+        useGameStore.getState().setGameOverAnimating(true);
+        this.render.animateCameraGameOver(() => {
+          useGameStore.getState().setGameOverAnimating(false);
+        });
+      }
 
-    this._executeEndTurnReturns(nextPlayer, returnsWithPos);
+      // Сбрасываем флаг разбоя после первого хода
+      if (this._isFirstStrike) this._isFirstStrike = false;
+
+      this._executeEndTurnReturns(nextPlayer, returnsWithPos);
+    }, 1000);
   }
 
   _executeEndTurnReturns(nextPlayer, returns) {
@@ -494,7 +510,7 @@ export class GameRulesManager {
       const isPvE = state.gameMode === 'pve';
       const cameraPlayer = (mode === 'local' && !isPvE) ? nextPlayer : role;
 
-      if (this._lastCurrentPlayer !== nextPlayer) {
+      if (this._lastCurrentPlayer !== nextPlayer && !state.winner) {
         this._rotateCameraForPlayer(cameraPlayer);
         this._lastCurrentPlayer = nextPlayer;
       }
