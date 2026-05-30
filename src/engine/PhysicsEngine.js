@@ -409,10 +409,10 @@ export class PhysicsEngine {
         if (Math.abs(upY) < 0.8) {
           // Объект стоит на ребре (наклон > ~36°):
           // — снижаем упругость, чтобы он не отпрыгивал
-          // — резко увеличиваем затухание, чтобы он быстро остановился
+          // — очень сильно увеличиваем затухание, чтобы он быстро остановился и не катился долго
           collider.setRestitution(0.0);
-          body.setLinearDamping(4.0);
-          body.setAngularDamping(8.0);
+          body.setLinearDamping(5.5);
+          body.setAngularDamping(10.0);
         } else {
           // Нормальное положение — возвращаем штатные параметры
           collider.setRestitution(PHYSICS.restitution);
