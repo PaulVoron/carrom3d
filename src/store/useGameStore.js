@@ -395,8 +395,10 @@ export const useGameStore = create(
 
       // ─── 1. Правила Королевы ──────────────────────────────────────────────────
       if (turnEvents.pocketedQueen) {
-        // Если нет цвета (счет 0) или фол - вернуть королеву
-        if (!ownColor || isFoul) {
+        const previousScore = ownColor ? score[ownColor] : 0;
+        // Если у игрока ДО этого удара не было забитых фишек, забивать королеву нельзя (фол)
+        if (previousScore === 0 || isFoul) {
+          isFoul = true;
           returns.push({ type: 'queen' });
           nextQueenState = 'on_board';
         } else {
@@ -589,7 +591,7 @@ export const useGameStore = create(
         }
       });
 
-      return { nextPlayer, returns, showColorSelection: isColorTie && !isFoul };
+      return { nextPlayer, returns, showColorSelection: isColorTie && !isFoul, isFoul };
     },
   })))
 );

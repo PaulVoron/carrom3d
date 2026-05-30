@@ -681,6 +681,9 @@ export class PhysicsEngine {
     if (collider) collider.setCollisionGroups(MASK_COIN_NORMAL);
 
     this.makeStrikerKinematic(strikerEntry, position);
+    
+    strikerEntry.mesh.visible = true;
+    strikerEntry.mesh.userData.pocketed = false;
   }
 
   // ─── Снапшоты (для мультиплеера) ─────────────────────────────────────────────

@@ -353,6 +353,9 @@ export class GameRulesManager {
     body.sleep();
     body.setEnabled(false);
     mesh.visible = false;
+    if (type === 'striker') {
+      mesh.userData.pocketed = true;
+    }
     
     console.log(`🚀 ${type} улетел за борт!`);
     useGameStore.getState().recordOutOfBounds(type);
@@ -390,7 +393,7 @@ export class GameRulesManager {
 
       // Host / Local: вычисляем исход хода ПОСЛЕ паузы
       const snapshot                       = this.physics.getSnapshot();
-      const { nextPlayer, returns }        = useGameStore.getState().evaluateTurn({ hitSomething });
+      const { nextPlayer, returns, isFoul: evaluatedFoul } = useGameStore.getState().evaluateTurn({ hitSomething });
 
       // ── Состояние ПОСЛЕ evaluateTurn ─────────────────────────────────────────
       const postState        = useGameStore.getState();
@@ -423,13 +426,13 @@ export class GameRulesManager {
       if (winner) {
         audioEvents.push({ type: 'global', key: 'ui_applause', vol: 0.3 });
       } else {
-        if (isFoulPre) {
+        if (evaluatedFoul) {
           audioEvents.push({ type: 'voice', key: 'voice_foul', delay: 500 });
         } else {
-          if (te.pocketedQueen) {
+          if (te.pocketedQueen && !queenJustCovered) {
             audioEvents.push({ type: 'voice', key: 'voice_queen_pocketed' });
           } else if (te.pocketedWhite > 0 || te.pocketedBlack > 0) {
-            if (Math.random() < 0.3) {
+            if (Math.random() < 0.3 && !queenJustCovered) {
               audioEvents.push({ type: 'voice', key: 'voice_wow' });
             }
           }
@@ -517,9 +520,7 @@ export class GameRulesManager {
       // Восстанавливаем биток
       if (this.strikerEntry) {
         if (this.strikerEntry.mesh.userData.pocketed || !this.strikerEntry.body.isEnabled()) {
-          console.log('🔄 Биток восстановлен из лузы.');
-          this.strikerEntry.mesh.visible = true;
-          this.strikerEntry.mesh.userData.pocketed = false;
+          console.log('🔄 Биток восстановлен из лузы или из-за борта.');
         }
 
         const resetPos = {
