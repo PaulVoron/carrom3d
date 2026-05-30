@@ -25,6 +25,8 @@ export const translations = {
     'menu.roomCode':        'Код кімнати:',
     'menu.cancel':          'Скасувати',
     'menu.connecting':      'Підключення...',
+    'fullscreen.enterText': 'Розгорнути',
+    'fullscreen.exitText':  'Згорнути',
     
     // ── Бот ───────────────────────────────────────────────────────────────────
     'bot.playVsBot':        'Грати проти Бота',
@@ -150,6 +152,8 @@ export const translations = {
     'menu.roomCode':        'Room code:',
     'menu.cancel':          'Cancel',
     'menu.connecting':      'Connecting...',
+    'fullscreen.enterText': 'Fullscreen',
+    'fullscreen.exitText':  'Exit Fullscreen',
 
     // ── Bot ───────────────────────────────────────────────────────────────────
     'bot.playVsBot':        'Play vs Bot',

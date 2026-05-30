@@ -1,0 +1,92 @@
+// src/components/FullscreenButton/FullscreenButton.module.scss
+@use '../../styles/variables' as *;
+
+.fullscreenBtn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  height: 40px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(15, 15, 22, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: $font-secondary;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  z-index: 1500;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  line-height: 1;
+
+  .icon {
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease;
+  }
+
+  .text {
+    white-space: nowrap;
+  }
+
+  &:hover {
+    background: rgba(79, 140, 255, 0.25);
+    color: #ffffff;
+    border-color: rgba(79, 140, 255, 0.45);
+    transform: translateY(-2px);
+    box-shadow: 
+      0 6px 20px rgba(79, 140, 255, 0.3),
+      0 0 0 1px rgba(79, 140, 255, 0.2);
+
+    .icon {
+      transform: scale(1.15);
+    }
+  }
+
+  &:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+
+  // ─── Адаптив для мобильных устройств ──────────────────────────────────────────
+  @media (max-width: 768px) {
+    top: 8px;
+    left: 8px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    
+    .text {
+      display: none;
+    }
+
+    .icon {
+      font-size: 12px;
+    }
+    
+    &:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(79, 140, 255, 0.25);
+      
+      .icon {
+        transform: none;
+      }
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+}

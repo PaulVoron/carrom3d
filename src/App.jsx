@@ -9,6 +9,7 @@ import { ColorAlert } from './components/ColorAlert/ColorAlert';
 import { ColorSelectionPopup } from './components/ColorSelectionPopup/ColorSelectionPopup';
 import { SettingsModal } from './components/SettingsModal/SettingsModal';
 import { PyramidRotator } from './components/PyramidRotator/PyramidRotator';
+import { FullscreenButton } from './components/FullscreenButton/FullscreenButton';
 import { useTranslation } from './i18n/translations';
 import './styles/global.scss';
 
@@ -25,6 +26,9 @@ export const App = () => {
         <p className="portrait-overlay__text">{t('rotate.message')}</p>
       </div>
       <GameCanvas />
+
+      {/* Кнопка полноэкранного режима доступна на всех экранах */}
+      <FullscreenButton />
 
       {/* SettingsModal доступен всегда — и в меню, и в игре */}
       <SettingsModal
