@@ -159,7 +159,7 @@ export const MainMenu = ({ onOpenSettings }) => {
           </div>
         )}
       </div>
-      <div className={styles.versionText}>ver. 1.0.1</div>
+      <div className={styles.versionText}>ver. 1.0.2</div>
       <div className={styles.authorText}>Developed by Pavlo Voronin, 2026</div>
     </div>
   );

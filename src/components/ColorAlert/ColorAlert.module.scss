@@ -21,7 +21,7 @@
   box-shadow: 0 10px 40px rgba(0,0,0,0.5);
   animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, fadeOut 0.5s ease 3.5s forwards;
   
-  @media (max-width: 768px) {
+  @media (max-width: 768px), (max-height: 600px) {
     padding: 12px 24px;
     font-size: 16px;
     max-width: 90vw;

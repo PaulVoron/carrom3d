@@ -190,22 +190,26 @@
   position: absolute;
   bottom: 12px;
   left: 16px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  color: rgba(17, 17, 17, 1);
   font-family: monospace;
   pointer-events: none;
+
+  @media (max-width: 768px), (max-height: 600px) {
+    font-size: 10px;
+  }
 }
 
 .authorText {
   position: absolute;
   bottom: 12px;
   right: 16px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  color: rgba(17, 17, 17, 1);
   font-family: sans-serif;
   pointer-events: none;
   
-  @media (max-width: 768px) {
-    font-size: 9px;
+  @media (max-width: 768px), (max-height: 600px) {
+    font-size: 10px;
   }
 }

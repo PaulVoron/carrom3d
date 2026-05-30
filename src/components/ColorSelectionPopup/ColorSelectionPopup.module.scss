@@ -24,6 +24,10 @@
   color: #fff;
   width: 100%;
   animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+
+  @media (max-width: 768px), (max-height: 600px) {
+    padding: 16px;
+  }
 }
 
 .title {
