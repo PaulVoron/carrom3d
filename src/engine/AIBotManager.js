@@ -50,7 +50,7 @@ const X_SCAN_RADIUS = 0.03;
 const PLACEMENT_GAP = 0.01;
 
 /** Вес угла резки в скоринге */
-const CUT_ANGLE_WEIGHT = 2.0;
+const CUT_ANGLE_WEIGHT = 2.5;
 
 /** Бонус за Королеву (вычитается из score → приоритет) */
 const QUEEN_BONUS = 1.0;
@@ -320,7 +320,7 @@ export class AIBotManager {
     const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
 
     // Fallback сила удара (было 0.08, уменьшаем до 0.04)
-    let force = 0.04;
+    let force = 0.08;
     if (this.orchestrator.rules._isFirstStrike) {
       force = PHYSICS.maxPullDistance;
     }
