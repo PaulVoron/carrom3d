@@ -107,9 +107,15 @@ export class AIBotManager {
    */
   _buildBestShot() {
     const state = useGameStore.getState();
+    const difficulty = state.botDifficulty || 3; // 1: Easy, 2: Medium, 3: Master
     const myColor = state.playerColors.player2;
     const bodies = this.orchestrator.physics.physicsBodies;
     const pockets = this.orchestrator.physics.pocketCenters;
+
+    // Устанавливаем параметры в зависимости от сложности
+    const diffMaxCutAngle = difficulty === 1 ? 30 * (Math.PI / 180) :
+                            difficulty === 2 ? 50 * (Math.PI / 180) :
+                            MAX_CUT_ANGLE;
 
     // ── 1. Определяем разрешённые цели ────────────────────────────────────────
     const validTargets = this._getValidTargets(state, myColor, bodies);
@@ -188,7 +194,7 @@ export class AIBotManager {
           const dot = dirHitX * dirPocketX + dirHitZ * dirPocketZ;
           const cutAngle = Math.acos(Math.min(1.0, Math.max(-1.0, dot)));
 
-          if (cutAngle > MAX_CUT_ANGLE) continue;
+          if (cutAngle > diffMaxCutAngle) continue;
 
           // ── Луч 2: striker → P_contact (свободна ли линия удара?) ──────
           const strikerBody = this.orchestrator.rules.strikerEntry.body;
@@ -226,18 +232,37 @@ export class AIBotManager {
               );
             }
 
+            let finalForce = force;
+            
+            // Вносим случайность в силу удара для низких уровней сложности
+            if (difficulty === 1) finalForce *= (1.0 + (Math.random() - 0.5) * 0.2); // +/- 10%
+            else if (difficulty === 2) finalForce *= (1.0 + (Math.random() - 0.5) * 0.1); // +/- 5%
+
+            finalForce = THREE.MathUtils.clamp(finalForce, 0.01, PHYSICS.maxPullDistance);
+
             bestShot = {
               strikerX: x,
-              impulse: new THREE.Vector3(dirHitX, 0, dirHitZ).multiplyScalar(force),
+              impulse: new THREE.Vector3(dirHitX, 0, dirHitZ).multiplyScalar(finalForce),
             };
           }
         }
       }
     }
 
+    // Применяем погрешность в прицеливании (шум угла) для низких сложностей
+    if (bestShot && difficulty < 3) {
+      const noiseRange = difficulty === 1 ? 0.05 : 0.015; // Радианы (~2.8° и ~0.8°)
+      const noiseAngle = (Math.random() - 0.5) * 2 * noiseRange;
+      const currentAngle = Math.atan2(bestShot.impulse.z, bestShot.impulse.x);
+      const newAngle = currentAngle + noiseAngle;
+      const len = bestShot.impulse.length();
+      bestShot.impulse.x = Math.cos(newAngle) * len;
+      bestShot.impulse.z = Math.sin(newAngle) * len;
+    }
+
     // ── Fallback: если нет чистого пути, бьём в ближайшую фишку ──────────────
     if (!bestShot) {
-      bestShot = this._buildFallbackShot(validTargets);
+      bestShot = this._buildFallbackShot(validTargets, difficulty);
     }
 
     return bestShot;
@@ -310,7 +335,7 @@ export class AIBotManager {
   /**
    * Fallback: бьём прямо в ближайшую фишку из ближайшей валидной X-позиции.
    */
-  _buildFallbackShot(validTargets) {
+  _buildFallbackShot(validTargets, difficulty = 3) {
     if (validTargets.length === 0) return null;
 
     const bodies = this.orchestrator.physics.physicsBodies;
@@ -356,6 +381,10 @@ export class AIBotManager {
     if (this.orchestrator.rules._isFirstStrike) {
       force = PHYSICS.maxPullDistance;
     }
+    
+    // Вносим шум и в fallback
+    if (difficulty === 1) force *= (1.0 + (Math.random() - 0.5) * 0.2);
+    else if (difficulty === 2) force *= (1.0 + (Math.random() - 0.5) * 0.1);
 
     return {
       strikerX: x,
