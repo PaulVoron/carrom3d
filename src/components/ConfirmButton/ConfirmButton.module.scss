@@ -23,7 +23,7 @@
   transition: all 0.22s ease;
   z-index: $z-index-ui;
   user-select: none;
-  animation: pulse-glow 2.4s ease-in-out infinite;
+  animation: pulse-glow 1.0s ease-in-out infinite;
 
   @media (max-width: 768px), (max-height: 600px) {
     bottom: 20px;

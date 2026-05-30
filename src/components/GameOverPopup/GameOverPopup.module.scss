@@ -1,106 +1,135 @@
 @use '../../styles/variables' as *;
 
+// ── Shared tokens ─────────────────────────────────────────────────────────────
+$glass-bg:    rgba(15, 15, 22, 0.92);
+$glass-border: rgba(255, 255, 255, 0.10);
+$accent:       #4f8cff;
+$accent-glow:  rgba(79, 140, 255, 0.40);
+$accent-2:     #a78bfa;
+$gold:         #e8c46a;
+$gold-dark:    #c99430;
+$text-primary:   #f1f1f5;
+$text-secondary: #9090a0;
+$radius-lg:      20px;
+$radius-md:      12px;
+
+// ── Backdrop ─────────────────────────────────────────────────────────────────
 .overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.60);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(2px);
-  // На маленьких экранах выравниваем по верху с отступом
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
   @media (max-height: 600px) {
     align-items: flex-start;
     padding-top: 16px;
   }
 }
 
+// ── Card ─────────────────────────────────────────────────────────────────────
 .popup {
-  background: rgba(25, 25, 35, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: clamp(18px, 4vw, 40px);
-  border-radius: 16px;
+  position: relative;
+  background: $glass-bg;
+  border: 1px solid $glass-border;
+  padding: clamp(18px, 4vw, 36px);
+  border-radius: $radius-lg;
   text-align: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.05) inset,
+    0 24px 64px rgba(0, 0, 0, 0.65),
+    0 0 60px rgba(79, 140, 255, 0.06);
+  color: $text-primary;
   min-width: min(300px, 90vw);
   max-width: min(420px, 95vw);
   max-height: 90vh;
   overflow-y: auto;
-  // Тонкий скроллбар
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.15) transparent;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
   &::-webkit-scrollbar       { width: 4px; }
-  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-  animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+  // Top highlight
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 12%; right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  }
+
+  animation: slideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+// ── Text ─────────────────────────────────────────────────────────────────────
 .title {
-  font-size: clamp(16px, 4vw, 24px);
-  font-weight: bold;
-  margin-bottom: clamp(10px, 2.5vh, 20px);
-  color: #a8b0d3;
+  font-family: $font-primary;
+  font-size: clamp(14px, 3.5vw, 20px);
+  font-weight: 700;
+  margin-bottom: clamp(8px, 2vh, 16px);
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 .winnerText {
-  font-size: clamp(20px, 5vw, 32px);
+  font-family: $font-primary;
+  font-size: clamp(22px, 5.5vw, 36px);
   font-weight: 800;
   margin-bottom: clamp(6px, 1.5vh, 10px);
-  color: #4ade80;
+  background: linear-gradient(135deg, #fff 30%, $accent 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .scoreText {
-  font-size: clamp(14px, 3.5vw, 20px);
-  margin-bottom: clamp(16px, 3vh, 30px);
-  color: #f1f5f9;
+  font-family: $font-primary;
+  font-size: clamp(13px, 3vw, 17px);
+  margin-bottom: clamp(16px, 3vh, 28px);
+  color: $text-secondary;
 }
 
+// ── Button ───────────────────────────────────────────────────────────────────
 .newGameBtn {
   display: inline-block;
   padding: clamp(10px, 2vh, 14px) clamp(24px, 5vw, 42px);
-  font-size: clamp(12px, 3vw, 15px);
-  font-weight: 700;
   font-family: $font-secondary;
-  letter-spacing: 0.06em;
+  font-size: clamp(12px, 2.8vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #1a110a;
-  background: linear-gradient(135deg, #e8c46a 0%, #c99430 50%, #e0b555 100%);
-  border: 1px solid rgba(255, 220, 120, 0.4);
+  color: #fff;
+  background: linear-gradient(135deg, $accent 0%, $accent-2 100%);
+  border: none;
   border-radius: 40px;
   cursor: pointer;
-  box-shadow:
-    0 4px 20px rgba(200, 148, 48, 0.45),
-    0 1px 0 rgba(255, 255, 255, 0.25) inset;
+  box-shadow: 0 4px 20px $accent-glow;
   transition: all 0.22s cubic-bezier(0.25, 0.8, 0.25, 1);
   user-select: none;
-  margin-top: 10px;
-  
+  margin-top: 8px;
+
   &:hover {
-    background: linear-gradient(135deg, #f0d07a 0%, #d9a840 50%, #eac465 100%);
-    box-shadow:
-      0 8px 32px rgba(200, 148, 48, 0.65),
-      0 1px 0 rgba(255, 255, 255, 0.3) inset;
+    box-shadow: 0 8px 32px $accent-glow;
     transform: translateY(-3px);
+    filter: brightness(1.1);
   }
-  
+
   &:active {
-    transform: translateY(0px);
-    box-shadow: 0 2px 10px rgba(200, 148, 48, 0.4);
+    transform: translateY(0);
+    filter: brightness(0.95);
   }
 }
 
+// ── Animation ─────────────────────────────────────────────────────────────────
 @keyframes slideUp {
-  0% {
-    opacity: 0;
-    transform: translateY(40px) scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  0%   { opacity: 0; transform: translateY(32px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);    }
 }

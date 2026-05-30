@@ -1,30 +1,61 @@
+@use '../../styles/variables' as *;
+
+// ── Shared design tokens ─────────────────────────────────────────────────────
+$glass-bg:        rgba(15, 15, 22, 0.88);
+$glass-border:    rgba(255, 255, 255, 0.10);
+$glass-highlight: rgba(255, 255, 255, 0.05);
+$accent:          #4f8cff;
+$accent-glow:     rgba(79, 140, 255, 0.40);
+$accent-2:        #a78bfa;
+$text-primary:    #f1f1f5;
+$text-secondary:  #9090a0;
+$radius-lg:       20px;
+$radius-md:       12px;
+$radius-sm:       8px;
+
+// ── Backdrop ─────────────────────────────────────────────────────────────────
 .overlay {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: radial-gradient(circle at center, rgba(30, 30, 40, 0.9) 0%, rgba(10, 10, 15, 0.5) 100%);
-  z-index: 1000;
+  background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
 }
 
+// ── Card ──────────────────────────────────────────────────────────────────────
 .menuCard {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
-  padding: clamp(20px, 4vh, 40px) clamp(20px, 4vw, 40px);
+  position: relative;
+  background: $glass-bg;
+  border: 1px solid $glass-border;
+  border-radius: $radius-lg;
+  padding: clamp(20px, 4vh, 36px) clamp(20px, 4vw, 36px);
   width: min(400px, 92vw);
   max-height: 92vh;
   overflow-y: auto;
   text-align: center;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  color: white;
-  animation: fadeIn 0.4s ease-out;
-  // Тонкий скроллбар
+  color: $text-primary;
+  box-shadow:
+    0 0 0 1px $glass-highlight inset,
+    0 24px 64px rgba(0, 0, 0, 0.60),
+    0 0 60px rgba(79, 140, 255, 0.06);
+  animation: fadeIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  // Highlight stripe at top
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 12%; right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  }
+
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.12) transparent;
   &::-webkit-scrollbar       { width: 4px; }
@@ -32,27 +63,30 @@
   &::-webkit-scrollbar-track { background: transparent; }
 }
 
+// ── Title ─────────────────────────────────────────────────────────────────────
 .title {
+  font-family: $font-primary;
   font-size: clamp(2rem, 7vw, 3rem);
-  margin-bottom: clamp(12px, 2.5vh, 20px);
+  margin-bottom: clamp(10px, 2vh, 18px);
   font-weight: 800;
-  background: linear-gradient(135deg, #fff, #aaa);
+  background: linear-gradient(135deg, #fff 30%, $accent 100%);
   -webkit-background-clip: text;
-  background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+  background-clip: text;
 }
 
+// ── Settings button ───────────────────────────────────────────────────────────
 .settingsBtn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 20px;
+  margin-bottom: clamp(12px, 2vh, 20px);
   padding: 7px 16px;
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid $glass-border;
   background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.55);
+  color: $text-secondary;
+  font-family: $font-primary;
   font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
@@ -60,79 +94,111 @@
   letter-spacing: 0.04em;
 
   &:hover {
-    background: rgba(79, 140, 255, 0.18);
-    border-color: rgba(79, 140, 255, 0.45);
+    background: rgba(79, 140, 255, 0.15);
+    border-color: rgba(79, 140, 255, 0.40);
     color: #fff;
     transform: translateY(-1px);
   }
 }
 
+// ── Action list ───────────────────────────────────────────────────────────────
 .actions {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: clamp(10px, 1.8vh, 14px);
 }
 
-.primaryButton, .secondaryButton, .cancelButton {
-  padding: clamp(10px, 2vh, 16px);
-  border-radius: 12px;
-  font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+// ── Buttons ───────────────────────────────────────────────────────────────────
+.primaryButton {
+  padding: clamp(10px, 2vh, 14px) 20px;
+  border-radius: $radius-md;
+  font-family: $font-primary;
+  font-size: clamp(0.88rem, 2.5vw, 1rem);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
   width: 100%;
-}
+  color: #fff;
+  background: linear-gradient(135deg, $accent 0%, $accent-2 100%);
+  box-shadow: 0 4px 18px $accent-glow;
+  letter-spacing: 0.02em;
 
-.primaryButton {
-  background: linear-gradient(135deg, #4CAF50, #45a049);
-  color: white;
-  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
-  
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+    box-shadow: 0 8px 28px $accent-glow;
+    filter: brightness(1.1);
+  }
+
+  &:active {
+    transform: translateY(0);
+    filter: brightness(0.95);
   }
 }
 
 .secondaryButton {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  
+  padding: clamp(10px, 2vh, 14px) 20px;
+  border-radius: $radius-md;
+  font-family: $font-primary;
+  font-size: clamp(0.88rem, 2.5vw, 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  color: $text-primary;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid $glass-border;
+
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 
 .cancelButton {
-  background: rgba(255, 50, 50, 0.2);
+  padding: clamp(10px, 2vh, 14px) 20px;
+  border-radius: $radius-md;
+  font-family: $font-primary;
+  font-size: clamp(0.88rem, 2.5vw, 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
   color: #ff6b6b;
-  border: 1px solid rgba(255, 50, 50, 0.3);
-  margin-top: 20px;
-  
+  background: rgba(255, 50, 50, 0.10);
+  border: 1px solid rgba(255, 80, 80, 0.25);
+  margin-top: 10px;
+
   &:hover {
-    background: rgba(255, 50, 50, 0.3);
+    background: rgba(255, 50, 50, 0.20);
+    border-color: rgba(255, 80, 80, 0.45);
   }
 }
 
+// ── Divider ───────────────────────────────────────────────────────────────────
 .divider {
-  margin: 10px 0;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 0.9rem;
+  margin: 2px 0;
+  color: $text-secondary;
+  font-size: 0.82rem;
+  font-family: $font-primary;
   display: flex;
   align-items: center;
-  
+
   &::before, &::after {
     content: '';
     flex: 1;
     height: 1px;
-    background: rgba(255, 255, 255, 0.1);
+    background: $glass-border;
     margin: 0 10px;
   }
 }
 
+// ── Join container ────────────────────────────────────────────────────────────
 .joinContainer {
   display: flex;
   gap: 8px;
@@ -140,58 +206,68 @@
 
 .input {
   flex: 1;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 0 16px;
-  color: white;
-  font-size: 1.1rem;
+  background: rgba(0, 0, 0, 0.30);
+  border: 1px solid $glass-border;
+  border-radius: $radius-md;
+  padding: 0 14px;
+  color: $text-primary;
+  font-family: $font-primary;
+  font-size: 1rem;
   text-align: center;
   text-transform: uppercase;
   outline: none;
-  width: 100px;
-  
+  width: 80px;
+  transition: border-color 0.15s;
+
   &:focus {
-    border-color: rgba(255, 255, 255, 0.5);
+    border-color: rgba(79, 140, 255, 0.5);
   }
 }
 
+// ── Waiting state ─────────────────────────────────────────────────────────────
 .waitingState {
   h2 {
-    font-size: 1.5rem;
-    margin-bottom: 20px;
-    color: #aaa;
+    font-family: $font-primary;
+    font-size: 1.3rem;
+    margin-bottom: 16px;
+    color: $text-secondary;
   }
 }
 
+// ── Room code ─────────────────────────────────────────────────────────────────
 .roomCode {
-  font-size: 3rem;
+  font-size: 2.8rem;
   font-weight: 800;
-  letter-spacing: 4px;
-  margin: 20px 0;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  letter-spacing: 6px;
+  margin: 16px 0;
+  color: $text-primary;
+  background: rgba(79, 140, 255, 0.10);
+  border: 1px solid rgba(79, 140, 255, 0.25);
   padding: 10px;
-  border-radius: 12px;
+  border-radius: $radius-md;
 }
 
+// ── Error ─────────────────────────────────────────────────────────────────────
 .error {
   color: #ff6b6b;
-  margin-top: 10px;
-  font-size: 0.9rem;
+  margin-top: 8px;
+  font-size: 0.88rem;
+  font-family: $font-primary;
 }
 
+// ── Animations ────────────────────────────────────────────────────────────────
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);    }
 }
 
+// ── Credits ───────────────────────────────────────────────────────────────────
 .versionText {
   position: absolute;
   bottom: 12px;
   left: 16px;
   font-size: 12px;
-  color: rgba(17, 17, 17, 1);
+  color: rgba(255, 255, 255, 0.30);
   font-family: monospace;
   pointer-events: none;
 
@@ -205,10 +281,10 @@
   bottom: 12px;
   right: 16px;
   font-size: 12px;
-  color: rgba(17, 17, 17, 1);
-  font-family: sans-serif;
+  color: rgba(255, 255, 255, 0.30);
+  font-family: $font-primary;
   pointer-events: none;
-  
+
   @media (max-width: 768px), (max-height: 600px) {
     font-size: 10px;
   }
