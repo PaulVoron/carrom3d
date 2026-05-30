@@ -25,7 +25,7 @@ export const ScoreBoard = () => {
 
     if (gameMode === 'pve' && pId === 2) {
       const difficultyText = botDifficulty === 1 ? t('bot.easy') : botDifficulty === 2 ? t('bot.medium') : t('bot.master');
-      return `Bot (${difficultyText})${colorSuffix}`;
+      return `${difficultyText}${colorSuffix}`;
     }
 
     if (networkMode !== 'local' && localPlayerRole) {

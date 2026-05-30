@@ -123,8 +123,8 @@ export const MainMenu = ({ onOpenSettings }) => {
             {showBotOptions ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <h3 style={{ margin: '0 0 10px 0', textAlign: 'center', color: '#fff' }}>{t('bot.difficulty')}</h3>
-                <button className={styles.primaryButton} onClick={() => startBotGame(1)}>{t('bot.easy')}</button>
-                <button className={styles.primaryButton} onClick={() => startBotGame(2)}>{t('bot.medium')}</button>
+                <button className={styles.primaryButton} onClick={() => startBotGame(1)} disabled={true}>{t('bot.easy')}</button>
+                <button className={styles.primaryButton} onClick={() => startBotGame(2)} disabled={true}>{t('bot.medium')}</button>
                 <button className={styles.primaryButton} onClick={() => startBotGame(3)}>{t('bot.master')}</button>
                 <button className={styles.secondaryButton} onClick={() => setShowBotOptions(false)}>{t('menu.cancel')}</button>
               </div>
