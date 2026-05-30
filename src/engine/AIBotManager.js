@@ -64,6 +64,10 @@ export class AIBotManager {
 
   onStateChange(state) {
     if (state.gameMode !== 'pve') return;
+    if (state.winner !== null) {
+      this.isThinking = false;
+      return;
+    }
     if (state.currentPlayer !== 2) return;
     if (state.gamePhase === 'PLACEMENT' && !this.isThinking && state.isReady) {
       this.isThinking = true;
@@ -77,6 +81,8 @@ export class AIBotManager {
   // ─── Главный метод хода ──────────────────────────────────────────────────────
 
   playTurn() {
+    if (useGameStore.getState().winner !== null) return;
+    
     const shotInfo = this._buildBestShot();
 
     if (!shotInfo) {
@@ -308,26 +314,52 @@ export class AIBotManager {
     if (validTargets.length === 0) return null;
 
     const bodies = this.orchestrator.physics.physicsBodies;
-    const fallbackTarget = validTargets[0];
+    
+    // Пытаемся найти фишку, которая находится перед линией бота
+    let forwardTargets = validTargets.filter(t => {
+      const p = t.entry.body.translation();
+      return (p.z - PLAYER_2_LINE_Z) > 0.05;
+    });
+    
+    let targetList = forwardTargets.length > 0 ? forwardTargets : validTargets;
+    
+    // Выбираем случайную цель из списка, чтобы не зацикливаться
+    const targetIdx = Math.floor(Math.random() * targetList.length);
+    const fallbackTarget = targetList[targetIdx];
     const pos = fallbackTarget.entry.body.translation();
 
-    // Пытаемся найти валидную X позицию как можно ближе к фишке
-    let x = THREE.MathUtils.clamp(pos.x, PLAYER_LINE_MIN_X, PLAYER_LINE_MAX_X);
+    // Бьем не точно в центр, а немного в сторону, чтобы "размазать" кучу 
+    // или оттолкнуть фишку от борта под углом.
+    const offsetLimit = PHYSICS.coinDia * 0.8; 
+    const randomOffsetX = (Math.random() - 0.5) * 2 * offsetLimit;
+    const aimX = pos.x + randomOffsetX;
+    
+    // Стараемся поставить биток не строго напротив фишки, чтобы добавить угол
+    const randomPlacementOffset = (Math.random() - 0.5) * 0.1;
+    let x = THREE.MathUtils.clamp(pos.x + randomPlacementOffset, PLAYER_LINE_MIN_X, PLAYER_LINE_MAX_X);
     x = this._findNearestValidX(x, bodies);
 
-    const dirX = pos.x - x;
+    const dirX = aimX - x;
     const dirZ = pos.z - PLAYER_2_LINE_Z;
     const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
 
-    // Fallback сила удара (было 0.08, уменьшаем до 0.04)
-    let force = 0.08;
+    // Если dirZ получается слишком мал (или назад), просто бьем вперед
+    let finalDirX = dirX / len;
+    let finalDirZ = dirZ / len;
+    if (finalDirZ < 0.01) {
+      finalDirX = 0;
+      finalDirZ = 1;
+    }
+
+    // Сила удара: делаем чуть сильнее чтобы разорвать кластер
+    let force = 0.06 + Math.random() * 0.04;
     if (this.orchestrator.rules._isFirstStrike) {
       force = PHYSICS.maxPullDistance;
     }
 
     return {
       strikerX: x,
-      impulse: new THREE.Vector3(dirX / len, 0, dirZ / len).multiplyScalar(force),
+      impulse: new THREE.Vector3(finalDirX, 0, finalDirZ).multiplyScalar(force),
     };
   }
 

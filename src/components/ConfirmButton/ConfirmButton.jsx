@@ -10,11 +10,16 @@ export const ConfirmButton = () => {
   const networkMode = useGameStore((state) => state.networkMode);
   const currentPlayer = useGameStore((state) => state.currentPlayer);
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
+  const gameMode = useGameStore((state) => state.gameMode);
   const { t } = useTranslation();
 
   const isActive = networkMode === 'local' || currentPlayer === localPlayerRole;
 
   if (gamePhase !== 'PLACEMENT') {
+    return null;
+  }
+
+  if (gameMode === 'pve' && currentPlayer === 2) {
     return null;
   }
 
