@@ -9,6 +9,7 @@ export const ScoreBoard = () => {
   const playerColors = useGameStore((state) => state.playerColors);
   const queenState = useGameStore((state) => state.queenState);
   const queenCoveredBy = useGameStore((state) => state.queenCoveredBy);
+  const timeLeft = useGameStore((state) => state.timeLeft);
 
   const networkMode = useGameStore((state) => state.networkMode);
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
@@ -63,6 +64,16 @@ export const ScoreBoard = () => {
     return null;
   };
 
+  // Форматируем время в MM:SS
+  const formatTime = (sec) => {
+    if (!sec || sec <= 0) return null;
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+  const timerDisplay = formatTime(timeLeft);
+  const isUrgent = timeLeft > 0 && timeLeft <= 5;
+
   return (
     <div className={styles.container}>
       <div className={`${styles.playerPanel} ${styles.player1} ${currentPlayer === 1 ? styles.activeP1 : ''}`}>
@@ -77,6 +88,11 @@ export const ScoreBoard = () => {
         <div className={`${styles.turnIndicator} ${currentPlayer === 1 ? styles.turnP1 : styles.turnP2}`}>
           {getTurnText()}
         </div>
+        {timerDisplay && (
+          <div className={`${styles.timer} ${isUrgent ? styles.timerUrgent : ''}`}>
+            {timerDisplay}
+          </div>
+        )}
       </div>
 
       <div className={`${styles.playerPanel} ${styles.player2} ${currentPlayer === 2 ? styles.activeP2 : ''}`}>

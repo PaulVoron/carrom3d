@@ -154,6 +154,13 @@ export const SettingsModal = ({ isOpen, onClose }) => {
           >
             {t('settings.tabCustomization')}
           </button>
+          <button
+            id="settings-tab-gameplay"
+            className={`${styles.tab} ${activeTab === 'gameplay' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('gameplay')}
+          >
+            {t('settings.tabGameplay')}
+          </button>
         </div>
 
         {/* ── Содержимое вкладки: Аудіо & Мова ── */}
@@ -243,6 +250,45 @@ export const SettingsModal = ({ isOpen, onClose }) => {
               onChange={(v) => handleSkin('environmentMap', v)}
               t={t}
             />
+          </div>
+        )}
+
+        {/* ── Содержимое вкладки: Геймплей ── */}
+        {activeTab === 'gameplay' && (
+          <div className={styles.tabContent}>
+
+            {/* ── Таймер хода ── */}
+            <div className={styles.sectionTitle}>{t('settings.turnTimeLimit')}</div>
+            <div className={styles.radioGroup}>
+              {[15, 30, 60, 180, 0].map((val) => (
+                <button
+                  key={val}
+                  id={`settings-time-${val}`}
+                  className={`${styles.radioBtn} ${settings.gameplay?.turnTimeLimit === val ? styles.radioBtnActive : ''}`}
+                  onClick={() => updateSetting('gameplay', 'turnTimeLimit', val)}
+                >
+                  {t(`settings.turnTime.${val}`)}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.divider} />
+
+            {/* ── Стиль пирамиды ── */}
+            <div className={styles.sectionTitle}>{t('settings.pyramidStyle')}</div>
+            <div className={styles.skinButtons}>
+              {['classic', 'random'].map((val) => (
+                <button
+                  key={val}
+                  id={`settings-pyramid-${val}`}
+                  className={`${styles.skinBtn} ${settings.gameplay?.pyramidStyle === val ? styles.skinBtnActive : ''}`}
+                  onClick={() => updateSetting('gameplay', 'pyramidStyle', val)}
+                >
+                  {t(`settings.pyramid.${val}`)}
+                </button>
+              ))}
+            </div>
+
           </div>
         )}
 

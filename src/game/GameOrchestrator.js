@@ -24,6 +24,18 @@ export class GameOrchestrator {
     this.rules   = new GameRulesManager(this.physics, this.render, this.input);
     this.botManager = new AIBotManager(this);
     this._isStarted = false;
+
+    /** THREE.Group для фишек пирамиды (кроме битка) — для визуального вращения */
+    this.pyramidGroup = null;
+
+    /** Массив цветов фишек (для рандом-режима и сетевой синхронизации) */
+    this._coinColors = null;
+
+    /** Отписка от pyramidRotation в Zustand */
+    this._pyramidRotationUnsub = null;
+
+    /** Отписка от pyramidStyle в Zustand */
+    this._pyramidStyleUnsub = null;
   }
 
   /**
@@ -89,6 +101,69 @@ export class GameOrchestrator {
       this.rules.handleOutOfBounds(entry);
     };
 
+    // 9. Подписка на pyramidRotation — вращаем группу локально
+    this._pyramidRotationUnsub = useGameStore.subscribe(
+      (state) => state.pyramidRotation,
+      (rad) => {
+        if (this.pyramidGroup && !useGameStore.getState().isPyramidLocked) {
+          this.pyramidGroup.rotation.y = rad;
+        }
+      }
+    );
+
+    // 9.5. Отправка SYNC_PYRAMID_LIVE для текущего активного игрока (20 FPS)
+    this._lastSentPyramidRotation = null;
+    this._liveSyncInterval = setInterval(() => {
+      const state = useGameStore.getState();
+      const isActivePlayer = state.networkMode !== 'local' && state.currentPlayer === state.localPlayerRole;
+      
+      if (isActivePlayer && !state.isPyramidLocked) {
+        const rad = state.pyramidRotation;
+        if (this._lastSentPyramidRotation !== rad) {
+          networkManager.send('SYNC_PYRAMID_LIVE', { 
+            rotation: rad,
+            colors: this._coinColors
+          });
+          this._lastSentPyramidRotation = rad;
+        }
+      }
+    }, 50);
+
+    // 10. Обработка SYNC_PYRAMID (окончательное применение)
+    networkManager.on('SYNC_PYRAMID', (data) => {
+      const { networkMode } = useGameStore.getState();
+      if (networkMode !== 'local') {
+        this._applyPyramidData(data.rotation, data.colors, true);
+        useGameStore.getState().lockPyramid();
+        console.log('🌐 [Network] SYNC_PYRAMID получен, пирамида применена.');
+      }
+    });
+
+    // 10.5. Обработка SYNC_PYRAMID_LIVE (живое вращение по сети)
+    networkManager.on('SYNC_PYRAMID_LIVE', (data) => {
+      const { networkMode } = useGameStore.getState();
+      if (networkMode !== 'local') {
+        this._applyPyramidData(data.rotation, data.colors, false);
+      }
+    });
+
+    // 11. Подписка на изменение типа пирамиды (для немедленного применения из настроек)
+    this._pyramidStyleUnsub = useGameStore.subscribe(
+      (state) => state.settings.gameplay?.pyramidStyle,
+      (style) => {
+        if (!useGameStore.getState().isPyramidLocked && this.pyramidGroup) {
+          this._applyPyramidStyle(style);
+          const state = useGameStore.getState();
+          if (state.networkMode === 'host') {
+            networkManager.send('SYNC_PYRAMID_LIVE', { 
+              rotation: state.pyramidRotation,
+              colors: this._coinColors
+            });
+          }
+        }
+      }
+    );
+
     // Сигнализируем React, что готово (теперь это делает MainMenu)
     // useGameStore.getState().setReady(true);
 
@@ -148,12 +223,17 @@ export class GameOrchestrator {
       this.physics.applySnapshot(this.initialSnapshot);
       this._syncAfterWarmup();
     }
+    // Сброс пирамиды: возвращаем группу в исходный поворот
+    if (this.pyramidGroup) {
+      this.pyramidGroup.rotation.y = 0;
+    }
+    this._coinColors = null;
+
     useGameStore.getState().initGame(startingPlayer);
     this.rules._lastCurrentPlayer = null;
-    this.rules._isEvaluating = false; // Сбрасываем флаг паузы при рестарте
+    this.rules._isEvaluating = false;
     this.input.setGamePhase('PLACEMENT');
     this.rules._validateInitialPlacement(useGameStore.getState().currentPlayer);
-    // Сбрасываем флаг разбоя и воспроизводим стартовый голос
     this.rules.startGame();
   }
 
@@ -289,23 +369,51 @@ export class GameOrchestrator {
       const perfectPos = this._getCarromPositions(boardCenter, coinDia, -Math.PI / 4);
       const coinRadius = coinDia / 2;
 
+      // ── Определяем цвета фишек (классика или рандом) ──────────────────────────
+      const pyramidStyle = useGameStore.getState().settings?.gameplay?.pyramidStyle ?? 'classic';
+      if (pyramidStyle === 'random') {
+        // Генерируем случайный порядок: 9 белых + 9 чёрных (позиции 1-18)
+        const colorArr = Array(9).fill('white').concat(Array(9).fill('black'));
+        // Fisher-Yates shuffle
+        for (let i = colorArr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [colorArr[i], colorArr[j]] = [colorArr[j], colorArr[i]];
+        }
+        this._coinColors = colorArr; // индекс 0 = позиция 1
+      } else {
+        this._coinColors = null; // классика: чётные — белые, нечётные — чёрные
+      }
+
+      // ── Создаём группу пирамиды для визуального вращения ──────────────────────
+      this.pyramidGroup = new THREE.Group();
+      this.render.scene.add(this.pyramidGroup);
+
       for (let i = 0; i < 19; i++) {
         const clone = coinTemplate.clone();
         clone.visible = true;
-        this.render.scene.add(clone);
         clone.userData.id = i;
 
         if (i === 0) {
+          // Королева — в центре, не входит в группу вращения отдельно
           clone.userData.type = 'queen';
           this._setMeshColor(clone, PHYSICS.colorRed);
+          this.render.scene.add(clone); // Королева добавляется прямо в сцену
         } else {
-          const isWhite = i % 2 === 0;
+          // Обычные фишки — входят в группу
+          let isWhite;
+          if (this._coinColors) {
+            isWhite = this._coinColors[i - 1] === 'white';
+          } else {
+            isWhite = i % 2 === 0;
+          }
           clone.userData.type = isWhite ? 'white' : 'black';
           this._setMeshColor(clone, isWhite ? PHYSICS.colorWhite : PHYSICS.colorBlack);
+          this.pyramidGroup.add(clone);
         }
 
         const spawnPos = perfectPos[i];
-        spawnPos.y = boardTopY + coinHalfH + 0.000;
+        spawnPos.y = boardTopY + coinHalfH;
+        clone.position.set(spawnPos.x, spawnPos.y, spawnPos.z);
 
         const body = this.physics.createDynamicBody(coinRadius, coinHalfH, spawnPos);
         this.physics.physicsBodies.push({ mesh: clone, body });
@@ -397,12 +505,202 @@ export class GameOrchestrator {
     this.rules.confirmPlacement();
   }
 
+  /**
+   * Вызывается из PyramidRotator при нажатии "Применить".
+   * 1. Генерирует/читает цвета (для рандом-режима)
+   * 2. «Запекает» текущий поворот группы в физические тела
+   * 3. Отправляет SYNC_PYRAMID (только хост/local)
+   * 4. Вызывает lockPyramid() в сторе
+   */
+  applyPyramidRotation() {
+    const state = useGameStore.getState();
+    const rotation = state.pyramidRotation;
+
+    // Убедимся, что цвета сгенерированы/обновлены перед запеканием
+    const style = state.settings.gameplay?.pyramidStyle ?? 'classic';
+    this._applyPyramidStyle(style);
+    
+    const colors = this._coinColors; // null для классики
+
+    // «Запекаем» трансформы группы в мировые координаты
+    this._bakePyramidGroupToPhysics();
+
+    // Отправляем SYNC_PYRAMID только если сетевая игра (host или client)
+    if (state.networkMode !== 'local') {
+      networkManager.send('SYNC_PYRAMID', { rotation, colors });
+      console.log('🌐 [Network] SYNC_PYRAMID отправлен:', { rotation: rotation.toFixed(3), colors: colors ? 'random' : 'classic' });
+    }
+
+    // Блокируем пирамиду в сторе
+    state.lockPyramid();
+    console.log('🔒 Пирамида применена и заблокирована.');
+  }
+
+  /**
+   * Генерирует и применяет стиль пирамиды (классика или рандом) к мешам.
+   * Вызывается при создании пирамиды или изменении настроек до старта.
+   */
+  _applyPyramidStyle(style) {
+    if (!this.pyramidGroup) return;
+
+    if (style === 'random') {
+      const colorArr = Array(9).fill('white').concat(Array(9).fill('black'));
+      for (let i = colorArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [colorArr[i], colorArr[j]] = [colorArr[j], colorArr[i]];
+      }
+      this._coinColors = colorArr;
+    } else {
+      this._coinColors = null;
+    }
+
+    let groupIdx = 0;
+    for (const child of this.pyramidGroup.children) {
+      if (child.userData.type === 'queen') continue;
+      
+      let isWhite;
+      if (this._coinColors) {
+        isWhite = this._coinColors[groupIdx] === 'white';
+      } else {
+        isWhite = (groupIdx + 1) % 2 === 0;
+      }
+      child.userData.type = isWhite ? 'white' : 'black';
+      this._setMeshColor(child, isWhite ? PHYSICS.colorWhite : PHYSICS.colorBlack);
+      groupIdx++;
+    }
+  }
+
+  /**
+   * Применяет данные пирамиды, полученные по сети (SYNC_PYRAMID или SYNC_PYRAMID_LIVE).
+   * Используется клиентом.
+   * @param {number} rotation — угол в радианах
+   * @param {string[]|null} colors — массив цветов ('white'|'black') для позиций 1-18
+   * @param {boolean} bake — нужно ли запекать изменения в физику
+   */
+  _applyPyramidData(rotation, colors, bake = true) {
+    // Применяем угол к группе
+    if (this.pyramidGroup) {
+      this.pyramidGroup.rotation.y = rotation;
+      useGameStore.getState().setPyramidRotation(rotation);
+    }
+
+    // Применяем цвета если рандом
+    if (colors && Array.isArray(colors)) {
+      this._coinColors = colors;
+      // Перекрашиваем меши
+      let groupIdx = 0;
+      for (const entry of this.physics.physicsBodies) {
+        const type = entry.mesh.userData.type;
+        if (type === 'white' || type === 'black') {
+          const newColor = colors[groupIdx] ?? (groupIdx % 2 === 0 ? 'white' : 'black');
+          entry.mesh.userData.type = newColor;
+          this._setMeshColor(entry.mesh, newColor === 'white' ? PHYSICS.colorWhite : PHYSICS.colorBlack);
+          groupIdx++;
+        }
+      }
+    }
+
+    // Запекаем в физику
+    if (bake) {
+      this._bakePyramidGroupToPhysics();
+    }
+  }
+
+  /**
+   * Генерирует и применяет стиль пирамиды (классика или рандом) к мешам.
+   * Вызывается при создании пирамиды или изменении настроек до старта.
+   */
+  _applyPyramidStyle(style) {
+    if (!this.pyramidGroup) return;
+
+    if (style === 'random') {
+      const colorArr = Array(9).fill('white').concat(Array(9).fill('black'));
+      for (let i = colorArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [colorArr[i], colorArr[j]] = [colorArr[j], colorArr[i]];
+      }
+      this._coinColors = colorArr;
+    } else {
+      this._coinColors = null;
+    }
+
+    let groupIdx = 0;
+    for (const child of this.pyramidGroup.children) {
+      if (child.userData.type === 'queen') continue;
+      
+      let isWhite;
+      if (this._coinColors) {
+        isWhite = this._coinColors[groupIdx] === 'white';
+      } else {
+        // ID 1-18. ID=1 (groupIdx=0) - черный, ID=2 (groupIdx=1) - белый.
+        // Подождите, в _setupPhysics: i % 2 === 0 -> white. 
+        // Если i начинается с 1 (так как i=0 это королева),
+        // то i=1 (нечетное) -> black, i=2 (четное) -> white.
+        isWhite = (groupIdx + 1) % 2 === 0;
+      }
+      child.userData.type = isWhite ? 'white' : 'black';
+      this._setMeshColor(child, isWhite ? PHYSICS.colorWhite : PHYSICS.colorBlack);
+      groupIdx++;
+    }
+  }
+
+
+
+  /**
+   * Запекает текущую трансформацию pyramidGroup в физические тела Rapier.
+   * После этого группа сбрасывается в y=0, а меши переносятся в scene.
+   */
+  _bakePyramidGroupToPhysics() {
+    if (!this.pyramidGroup) return;
+
+    // Обновляем мировые матрицы
+    this.pyramidGroup.updateMatrixWorld(true);
+
+    const worldPos = new THREE.Vector3();
+    const children = [...this.pyramidGroup.children];
+
+    for (const child of children) {
+      // Получаем мировую позицию
+      child.getWorldPosition(worldPos);
+
+      // Находим соответствующее физическое тело
+      const entry = this.physics.physicsBodies.find(e => e.mesh === child);
+      if (entry && entry.body) {
+        // Обновляем позицию тела в Rapier
+        const current = entry.body.translation();
+        entry.body.setTranslation({ x: worldPos.x, y: current.y, z: worldPos.z }, true);
+        entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+
+      // Переносим меш из группы в сцену с сохранением мировых координат
+      this.render.scene.attach(child);
+    }
+
+    // Сбрасываем поворот группы (она теперь пустая)
+    this.pyramidGroup.rotation.y = 0;
+    console.log(`🔄 Запечено ${children.length} фишек из pyramidGroup в физику.`);
+  }
+
   dispose() {
     this.input.detach();
+    this.rules.dispose();
     this.render.dispose();
     this.physics.dispose();
     audioManager.dispose();
     this.botManager.dispose();
+    if (this._pyramidRotationUnsub) {
+      this._pyramidRotationUnsub();
+      this._pyramidRotationUnsub = null;
+    }
+    if (this._pyramidStyleUnsub) {
+      this._pyramidStyleUnsub();
+      this._pyramidStyleUnsub = null;
+    }
+    if (this._liveSyncInterval) {
+      clearInterval(this._liveSyncInterval);
+      this._liveSyncInterval = null;
+    }
     this._isStarted = false;
   }
 }

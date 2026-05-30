@@ -71,6 +71,25 @@ export class GameRulesManager {
     };
 
     this._lastColTimes = new Map();
+
+    /** ID интервала таймера хода */
+    this._timerInterval = null;
+
+    // Подписываемся на isPyramidLocked: когда пирамида заблокирована,
+    // запускаем таймер первого хода и озвучиваем начало
+    this._pyramidLockUnsub = useGameStore.subscribe(
+      (state) => state.isPyramidLocked,
+      (locked) => {
+        if (locked) {
+          console.log('🔒 Пирамида заблокирована — запускаем таймер первого хода.');
+          this._startTurnTimer();
+          
+          if (this._isFirstStrike) {
+            this.audio.playVoice('voice_start_game');
+          }
+        }
+      }
+    );
   }
 
   _setupNetworking() {
@@ -182,14 +201,11 @@ export class GameRulesManager {
 
   /**
    * Вызвать при старте новой игры.
-   * Сбрасывает флаг разбоя и воспроизводит приветственный голос.
+   * Сбрасывает флаг разбоя. Приветственный голос теперь
+   * воспроизводится, когда игрок применяет пирамиду (в isPyramidLocked).
    */
   startGame() {
     this._isFirstStrike = true;
-    // Голос запускается после того, как камера повернётся на позицию игрока (1.5s + 0.2s)
-    setTimeout(() => {
-      this.audio.playVoice('voice_start_game');
-    }, 1700);
   }
 
   // ─── RAF-вызов ───────────────────────────────────────────────────────────────
@@ -542,6 +558,9 @@ export class GameRulesManager {
 
       // Запускаем начальную валидацию
       this._validateInitialPlacement(nextPlayer);
+
+      // Запускаем таймер нового хода
+      this._startTurnTimer();
     });
   }
 
@@ -690,6 +709,9 @@ export class GameRulesManager {
   shoot(impulseVec, isRemote = false) {
     const { gamePhase, networkMode } = useGameStore.getState();
     if (gamePhase !== 'AIMING') return;
+
+    // Останавливаем таймер хода при ударе
+    this._clearTurnTimer();
 
     if (!isRemote && networkMode !== 'local') {
       networkManager.send('STRIKE', { impulse: { x: impulseVec.x, y: impulseVec.y, z: impulseVec.z } });
@@ -885,5 +907,81 @@ export class GameRulesManager {
         id: soundEntry.mesh.userData.id
       });
     }
+  }
+
+  // ─── Таймер хода ─────────────────────────────────────────────────────────────
+
+  /**
+   * Запускает таймер хода (если лимит > 0).
+   * Таймер декрементирует timeLeft каждую секунду.
+   * При достижении 0 — вызывает _onTimeExpired().
+   */
+  _startTurnTimer() {
+    this._clearTurnTimer();
+    const { settings, isPyramidLocked, winner } = useGameStore.getState();
+    if (winner) return; // Игра окончена
+    if (!isPyramidLocked) return; // Ждём блокировки пирамиды
+
+    const limit = settings?.gameplay?.turnTimeLimit ?? 30;
+    if (limit === 0) {
+      useGameStore.getState().setTimeLeft(0); // Безлимит: не показываем таймер
+      return;
+    }
+
+    useGameStore.getState().setTimeLeft(limit);
+    console.log(`⏱️ Таймер хода запущен: ${limit}с`);
+
+    this._timerInterval = setInterval(() => {
+      const state = useGameStore.getState();
+      const { gamePhase, timeLeft, winner: w } = state;
+
+      // Останавливаем если игра завершена или фаза MOVING
+      if (w || gamePhase === 'MOVING') {
+        this._clearTurnTimer();
+        return;
+      }
+
+      if (timeLeft <= 1) {
+        this._clearTurnTimer();
+        this._onTimeExpired();
+      } else {
+        useGameStore.getState().setTimeLeft(timeLeft - 1);
+      }
+    }, 1000);
+  }
+
+  /** Очищает интервал таймера и сбрасывает timeLeft в 0 */
+  _clearTurnTimer() {
+    if (this._timerInterval) {
+      clearInterval(this._timerInterval);
+      this._timerInterval = null;
+    }
+    useGameStore.getState().setTimeLeft(0);
+  }
+
+  /**
+   * Вызывается когда таймер истёк.
+   * Прерывает ход игрока через фол и передаёт ход сопернику.
+   */
+  _onTimeExpired() {
+    const { gamePhase, winner } = useGameStore.getState();
+    if (winner) return;
+    if (gamePhase !== 'PLACEMENT' && gamePhase !== 'AIMING') return;
+
+    console.log('⏰ Время хода вышло! Фол — передача хода.');
+
+    // Отмечаем фол в turnEvents
+    useGameStore.getState().recordPocket('foul');
+
+    // Если биток был уже в режиме AIMING — переводим в MOVING чтобы _endTurn сработал
+    // Для PLACEMENT — напрямую запускаем _endTurn
+    if (gamePhase === 'AIMING') {
+      // Возвращаем биток на позицию (он кинематичен)
+      useGameStore.getState().setGamePhase('MOVING');
+      this.input.setGamePhase('MOVING');
+    }
+
+    // Запускаем _endTurn напрямую (минуя ожидание физики)
+    this._endTurn();
   }
 }

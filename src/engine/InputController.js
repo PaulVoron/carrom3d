@@ -25,6 +25,7 @@ export class InputController {
     this._dragPlane  = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this._isDragging = false;
     this._isAiming   = false;
+    this._lastSyncTime = 0;
     this.currentImpulse = new THREE.Vector3();
     this._aimStart = new THREE.Vector3();
     this._strikerEntry  = null;
@@ -69,9 +70,14 @@ export class InputController {
     const player = useGameStore.getState().currentPlayer;
     const role = useGameStore.getState().localPlayerRole;
     const gameMode = useGameStore.getState().gameMode;
+    const { isPyramidLocked, score } = useGameStore.getState();
 
     if (gameMode === 'pve' && player === 2) return false;
-    
+
+    // Блокируем ввод пока пирамида не заблокирована (на первом ходу)
+    const isFirstTurn = score.white === 0 && score.black === 0;
+    if (isFirstTurn && !isPyramidLocked) return false;
+
     if (mode === 'local') return true;
     if (mode !== 'local' && player === role) return true;
     return false;
@@ -126,7 +132,11 @@ export class InputController {
       if (this.onStrikerDrag) this.onStrikerDrag(x);
       
       if (useGameStore.getState().networkMode !== 'local') {
-        networkManager.send('SYNC_PLACEMENT', { x });
+        const now = Date.now();
+        if (now - this._lastSyncTime > 50) {
+          networkManager.send('SYNC_PLACEMENT', { x });
+          this._lastSyncTime = now;
+        }
       }
     } else if (this._gamePhase === 'AIMING' && this._isAiming) {
       const pull = new THREE.Vector3().subVectors(hit, this._aimStart);
@@ -134,7 +144,11 @@ export class InputController {
       this.currentImpulse.copy(pull).multiplyScalar(-1);
 
       if (useGameStore.getState().networkMode !== 'local') {
-        networkManager.send('SYNC_AIM', { impulse: { x: this.currentImpulse.x, y: this.currentImpulse.y, z: this.currentImpulse.z } });
+        const now = Date.now();
+        if (now - this._lastSyncTime > 50) {
+          networkManager.send('SYNC_AIM', { impulse: { x: this.currentImpulse.x, y: this.currentImpulse.y, z: this.currentImpulse.z } });
+          this._lastSyncTime = now;
+        }
       }
     }
   };

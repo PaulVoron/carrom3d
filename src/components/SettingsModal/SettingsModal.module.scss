@@ -364,3 +364,42 @@ $radius-sm:       8px;
   color: #fff;
   box-shadow: 0 0 10px rgba(79, 140, 255, 0.20);
 }
+
+// ── Radio Group (Turn Time) ───────────────────────────────────────────────────
+
+.radioGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.radioBtn {
+  padding: clamp(5px, 1.1vh, 8px) clamp(10px, 2.5vw, 18px);
+  border-radius: 30px;
+  border: 1px solid $glass-border;
+  background: rgba(255,255,255,0.04);
+  color: $text-secondary;
+  font-family: $font-primary;
+  font-size: clamp(0.72rem, 2vw, 0.82rem);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+
+  &:hover:not(.radioBtnActive) {
+    background: rgba(255,255,255,0.09);
+    color: $text-primary;
+    border-color: rgba(255,255,255,0.22);
+    transform: translateY(-1px);
+  }
+}
+
+.radioBtnActive {
+  background: linear-gradient(135deg, $accent 0%, $accent-2 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 14px $accent-glow;
+  transform: translateY(-1px);
+}

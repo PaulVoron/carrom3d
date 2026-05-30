@@ -8,6 +8,7 @@ import { useGameStore } from './store/useGameStore';
 import { ColorAlert } from './components/ColorAlert/ColorAlert';
 import { ColorSelectionPopup } from './components/ColorSelectionPopup/ColorSelectionPopup';
 import { SettingsModal } from './components/SettingsModal/SettingsModal';
+import { PyramidRotator } from './components/PyramidRotator/PyramidRotator';
 import { useTranslation } from './i18n/translations';
 import './styles/global.scss';
 
@@ -38,6 +39,7 @@ export const App = () => {
       {isReady && (
         <>
           <ScoreBoard />
+          <PyramidRotator />
           <ConfirmButton />
           <GameOverPopup />
           <ColorAlert />

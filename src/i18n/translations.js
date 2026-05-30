@@ -78,10 +78,11 @@ export const translations = {
     'network.createError':          'Помилка створення кімнати',
     'network.joinError':            'Не вдалося підключитися. Перевірте код.',
 
-    // ── Налаштування (SettingsModal) ──────────────────────────────────────────
+    // ── Налаштування (СеттингсМодал) ───────────────────────────────────────
     'settings.title':             'Налаштування',
     'settings.tabAudio':          'Аудіо & Мова',
     'settings.tabCustomization':  'Кастомізація',
+    'settings.tabGameplay':       'Геймплей',
     'settings.close':             'Закрити',
 
     'settings.volumeMaster':      'Загальна гучність',
@@ -92,6 +93,21 @@ export const translations = {
     'settings.language':          'Мова',
     'settings.langUk':            'Українська',
     'settings.langEn':            'English',
+
+    // ── Налаштування геймплею ─────────────────────────────────────────────────────
+    'settings.turnTimeLimit':     'Час на хід',
+    'settings.turnTime.15':       '15 сек',
+    'settings.turnTime.30':       '30 сек',
+    'settings.turnTime.60':       '1 хв',
+    'settings.turnTime.180':      '3 хв',
+    'settings.turnTime.0':        'Безліміт',
+    'settings.pyramidStyle':      'Збірка піраміди',
+    'settings.pyramid.classic':   'Класика',
+    'settings.pyramid.random':    'Рандом',
+
+    // ── Visual PyramidRotator ────────────────────────────────────────────────────────
+    'pyramid.rotate':             'Оберніть піраміду',
+    'pyramid.apply':              'Застосувати',
 
     'settings.boardTexture':      'Текстура столу',
     'settings.frameTexture':      'Текстура бортів',
@@ -187,10 +203,11 @@ export const translations = {
     'network.createError':          'Failed to create room',
     'network.joinError':            'Failed to connect. Check the code.',
 
-    // ── Settings (SettingsModal) ───────────────────────────────────────────────
+    // ── Settings (SettingsModal) ─────────────────────────────────────────────
     'settings.title':             'Settings',
     'settings.tabAudio':          'Audio & Language',
     'settings.tabCustomization':  'Customization',
+    'settings.tabGameplay':       'Gameplay',
     'settings.close':             'Close',
 
     'settings.volumeMaster':      'Master Volume',
@@ -201,6 +218,21 @@ export const translations = {
     'settings.language':          'Language',
     'settings.langUk':            'Ukrainian',
     'settings.langEn':            'English',
+
+    // ── Gameplay Settings ──────────────────────────────────────────────────────
+    'settings.turnTimeLimit':     'Turn Time Limit',
+    'settings.turnTime.15':       '15 sec',
+    'settings.turnTime.30':       '30 sec',
+    'settings.turnTime.60':       '1 min',
+    'settings.turnTime.180':      '3 min',
+    'settings.turnTime.0':        'Unlimited',
+    'settings.pyramidStyle':      'Pyramid Style',
+    'settings.pyramid.classic':   'Classic',
+    'settings.pyramid.random':    'Random',
+
+    // ── PyramidRotator ─────────────────────────────────────────────────────────
+    'pyramid.rotate':             'Rotate Pyramid',
+    'pyramid.apply':              'Apply',
 
     'settings.boardTexture':      'Board Texture',
     'settings.frameTexture':      'Frame Texture',

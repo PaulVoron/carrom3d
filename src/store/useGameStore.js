@@ -41,6 +41,10 @@ const DEFAULT_SETTINGS = {
     coinColorSet:   'default', // 'default' | 'golden' | 'classic'
     environmentMap: '/hdr/default.hdr',
   },
+  gameplay: {
+    turnTimeLimit: 30,       // 15 | 30 | 60 | 180 | 0 (unlimited)
+    pyramidStyle:  'classic', // 'classic' | 'random'
+  },
 };
 
 /** Загрузить настройки из localStorage (с fallback на дефолты) */
@@ -51,8 +55,9 @@ function loadSettings() {
     const parsed = JSON.parse(raw);
     // Deep merge: сохраняем дефолты для отсутствующих ключей
     return {
-      volume:   { ...DEFAULT_SETTINGS.volume, ...(parsed.volume ?? {}) },
-      skins:    { ...DEFAULT_SETTINGS.skins,  ...(parsed.skins  ?? {}) },
+      volume:   { ...DEFAULT_SETTINGS.volume,   ...(parsed.volume   ?? {}) },
+      skins:    { ...DEFAULT_SETTINGS.skins,    ...(parsed.skins    ?? {}) },
+      gameplay: { ...DEFAULT_SETTINGS.gameplay, ...(parsed.gameplay ?? {}) },
       language: parsed.language ?? 'uk',
     };
   } catch {
@@ -160,6 +165,17 @@ export const useGameStore = create(
     /** Флаг: инициализирована ли игра (показывать ли UI) */
     isReady: false,
 
+    // ── Пирамида ───────────────────────────────────────────────────────────────
+    /** Угол поворота пирамиды в радианах (управляется слайдером) */
+    pyramidRotation: 0,
+
+    /** Флаг: заблокирована ли пирамида (нажата кнопка "Применить") */
+    isPyramidLocked: false,
+
+    // ── Таймер хода ────────────────────────────────────────────────────────────
+    /** Оставшееся время текущего хода (секунды). 0 = нет активного таймера */
+    timeLeft: 0,
+
     /** Язык интерфейса и голосовой озвучки ('uk' | 'en') */
     language: loadSettings().language ?? 'uk',
 
@@ -206,6 +222,10 @@ export const useGameStore = create(
         state.gamePhase = 'PLACEMENT';
         state.isPlacementBlocked = false;
         state.showColorSelection = false;
+        // Сбрасываем состояние пирамиды и таймера
+        state.pyramidRotation = 0;
+        state.isPyramidLocked = false;
+        state.timeLeft = 0;
       }),
 
     /** Переключить фазу игры */
@@ -254,7 +274,7 @@ export const useGameStore = create(
 
     /**
      * Обновить одну настройку и сразу сохранить в localStorage.
-     * @param {'volume' | 'skins'} category
+     * @param {'volume' | 'skins' | 'gameplay'} category
      * @param {string} key
      * @param {*} value
      */
@@ -263,6 +283,18 @@ export const useGameStore = create(
         state.settings[category][key] = value;
         saveSettings({ ...state.settings, language: get().language });
       }),
+
+    /** Установить угол поворота пирамиды (в радианах) */
+    setPyramidRotation: (/** @type {number} */ rad) =>
+      set((state) => { state.pyramidRotation = rad; }),
+
+    /** Заблокировать пирамиду (нажата кнопка "Применить") */
+    lockPyramid: () =>
+      set((state) => { state.isPyramidLocked = true; }),
+
+    /** Установить оставшееся время хода */
+    setTimeLeft: (/** @type {number} */ n) =>
+      set((state) => { state.timeLeft = n; }),
 
     /** Установить сетевой режим */
     setNetworkMode: (/** @type {'local' | 'host' | 'client'} */ mode) =>
