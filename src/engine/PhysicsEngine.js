@@ -411,7 +411,7 @@ export class PhysicsEngine {
           // — снижаем упругость, чтобы он не отпрыгивал
           // — очень сильно увеличиваем затухание, чтобы он быстро остановился и не катился долго
           collider.setRestitution(0.0);
-          body.setLinearDamping(5.5);
+          body.setLinearDamping(6.5);
           body.setAngularDamping(10.0);
         } else {
           // Нормальное положение — возвращаем штатные параметры

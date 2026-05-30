@@ -209,9 +209,9 @@ export class AIBotManager {
             } else {
               // Настройка силы для ВСЕХ последующих ударов:
               // Формула: totalDist * МНОЖИТЕЛЬ + БАЗА.
-              // Сейчас: multiplier = 0.06 (было 0.12), base = 0.015 (было 0.03).
+              // Сейчас: multiplier = 0.04 (было 0.06), base = 0.015 (было 0.03).
               // Измените эти два значения ниже, чтобы отрегулировать силу ударов бота!
-              const forceMultiplier = 0.06; 
+              const forceMultiplier = 0.04; 
               const forceBase = 0.015;
 
               force = Math.min(
