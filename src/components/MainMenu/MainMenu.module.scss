@@ -267,7 +267,18 @@ $radius-sm:       8px;
   bottom: 12px;
   left: 16px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.30);
+  color: rgba(17, 17, 17, 1);
+  font-family: monospace;
+  pointer-events: none;
+
+  @media (max-width: 768px), (max-height: 600px) {
+    font-size: 10px;
+  }
+}
+
+.versionText2 {
+  font-size: 12px;
+  color: rgba(17, 17, 17, 1);
   font-family: monospace;
   pointer-events: none;
 
@@ -281,11 +292,24 @@ $radius-sm:       8px;
   bottom: 12px;
   right: 16px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.30);
+  text-align: right;
+  color: rgba(17, 17, 17, 1);
   font-family: $font-primary;
   pointer-events: none;
 
   @media (max-width: 768px), (max-height: 600px) {
     font-size: 10px;
+  }
+}
+
+// ── Email link ─────────────────────────────────────────────────────────────
+.emailLink {
+  color: #21385c;
+  text-decoration: none;
+  transition: color 0.15s;
+
+  &:hover {
+    color: #ffffff;
+    text-decoration: underline;
   }
 }
