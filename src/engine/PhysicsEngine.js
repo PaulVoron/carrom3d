@@ -713,14 +713,14 @@ export class PhysicsEngine {
       const body = entry.body;
       if (snap.isEnabled) {
         body.setEnabled(true);
-        body.setTranslation(snap.translation, true);
-        body.setRotation(snap.rotation, true);
-        body.setLinvel(snap.linvel, true);
-        body.setAngvel(snap.angvel, true);
+        body.setTranslation({ x: snap.translation.x, y: snap.translation.y, z: snap.translation.z }, true);
+        body.setRotation({ x: snap.rotation.x, y: snap.rotation.y, z: snap.rotation.z, w: snap.rotation.w }, true);
+        body.setLinvel({ x: snap.linvel.x, y: snap.linvel.y, z: snap.linvel.z }, true);
+        body.setAngvel({ x: snap.angvel.x, y: snap.angvel.y, z: snap.angvel.z }, true);
         body.sleep();
         
-        entry.mesh.position.copy(snap.translation);
-        entry.mesh.quaternion.copy(snap.rotation);
+        entry.mesh.position.set(snap.translation.x, snap.translation.y, snap.translation.z);
+        entry.mesh.quaternion.set(snap.rotation.x, snap.rotation.y, snap.rotation.z, snap.rotation.w);
         entry.mesh.visible = true;
         if (entry.mesh.userData.type === 'striker') {
            entry.mesh.userData.pocketed = false;

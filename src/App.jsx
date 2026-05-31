@@ -10,11 +10,13 @@ import { ColorSelectionPopup } from './components/ColorSelectionPopup/ColorSelec
 import { SettingsModal } from './components/SettingsModal/SettingsModal';
 import { PyramidRotator } from './components/PyramidRotator/PyramidRotator';
 import { FullscreenButton } from './components/FullscreenButton/FullscreenButton';
+import { ChallengePopup } from './components/ChallengePopup/ChallengePopup';
 import { useTranslation } from './i18n/translations';
 import './styles/global.scss';
 
 export const App = () => {
   const isReady = useGameStore((state) => state.isReady);
+  const gameMode = useGameStore((state) => state.gameMode);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { t } = useTranslation();
 
@@ -43,11 +45,12 @@ export const App = () => {
       {isReady && (
         <>
           <ScoreBoard />
-          <PyramidRotator />
+          {gameMode !== 'challenge' && <PyramidRotator />}
           <ConfirmButton />
           <GameOverPopup />
           <ColorAlert />
           <ColorSelectionPopup />
+          <ChallengePopup />
 
           {/* Кнопка-шестерёнка в игре */}
           <button

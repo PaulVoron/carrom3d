@@ -16,6 +16,8 @@ export const translations = {
     // ── Головне меню ──────────────────────────────────────────────────────────
     'menu.title':           'Carrom 3D',
     'menu.localGame':       'Локальна гра',
+    'menu.training':        'Тренування',
+    'menu.challenge':       'Випробування',
     'menu.createGame':      'Створити гру',
     'menu.joinGame':        'Приєднатися',
     'menu.or':              'Або онлайн',
@@ -45,6 +47,16 @@ export const translations = {
     'score.yourTurn':       'Ваш хід',
     'score.opponentTurn':   'Грає суперник',
     'score.turnPlayer':     'ХІД: ГРАВЕЦЬ',
+    'score.strikes':        'Удари',
+    'score.undo':           'Відмінити хід',
+    'score.restart':        'Рестарт',
+    'score.limit':          'Ліміт',
+
+    // ── Challenge Popup ───────────────────────────────────────────────────────
+    'challenge.passed':     'Рівень Пройдено!',
+    'challenge.failed':     'Рівень Провалено',
+    'challenge.nextLevel':  'Наступний рівень',
+    'challenge.retry':      'Повторити',
 
     // ── GameOver Popup ────────────────────────────────────────────────────────
     'gameover.title':       'Гру закінчено!',
@@ -143,6 +155,8 @@ export const translations = {
     // ── Main Menu ─────────────────────────────────────────────────────────────
     'menu.title':           'Carrom 3D',
     'menu.localGame':       'Local Game',
+    'menu.training':        'Training',
+    'menu.challenge':       'Challenge',
     'menu.createGame':      'Create Game',
     'menu.joinGame':        'Join Game',
     'menu.or':              'Or online',
@@ -172,6 +186,16 @@ export const translations = {
     'score.yourTurn':       'Your turn',
     'score.opponentTurn':   'Opponent\'s turn',
     'score.turnPlayer':     'TURN: PLAYER',
+    'score.strikes':        'Strikes',
+    'score.undo':           'Undo',
+    'score.restart':        'Restart',
+    'score.limit':          'Limit',
+
+    // ── Challenge Popup ───────────────────────────────────────────────────────
+    'challenge.passed':     'Level Passed!',
+    'challenge.failed':     'Level Failed',
+    'challenge.nextLevel':  'Next Level',
+    'challenge.retry':      'Retry',
 
     // ── GameOver Popup ────────────────────────────────────────────────────────
     'gameover.title':       'Game Over!',

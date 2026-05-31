@@ -101,11 +101,19 @@ export const useGameStore = create(
     settings: loadSettings(),
 
     // ── Состояние игры ──────────────────────────────────────────────────────
-    /** @type {'pvp' | 'pve'} */
+    /** @type {'pvp' | 'pve' | 'training' | 'challenge'} */
     gameMode: 'pvp',
 
     /** @type {1 | 2 | 3} (1: Easy, 2: Medium, 3: Master) */
     botDifficulty: 1,
+
+    // ── Training & Challenge ────────────────────────────────────────────────
+    history: [], // для undo в режиме training
+    currentLevelId: 1,
+    strikesUsed: 0,
+    challengeResult: null, // null | { status: 'win' | 'lose', stars: 0..3 }
+    undoTrigger: 0, // Инкремент для триггера Undo в Orchestrator
+
 
     /** @type {number} */
     gameId: 0,
@@ -210,7 +218,7 @@ export const useGameStore = create(
         const start = forceStartingPlayer || (Math.random() > 0.5 ? 1 : 2);
         state.currentPlayer = start;
         state.lastStartingPlayer = start;
-        state.score = { white: 0, black: 0 };
+        state.score = { white: 0, black: 0, player1: 0 };
         state.playerColors = { player1: null, player2: null };
         state.dueDebt = { player1: 0, player2: 0 };
         state.queenState = 'on_board';
@@ -224,20 +232,72 @@ export const useGameStore = create(
         state.showColorSelection = false;
         // Сбрасываем состояние пирамиды и таймера
         state.pyramidRotation = 0;
-        state.isPyramidLocked = false;
+        state.isPyramidLocked = state.gameMode === 'challenge';
         state.timeLeft = 0;
+        // Сбрасываем удары и историю для одиночных режимов (при рестарте уровня)
+        state.strikesUsed = 0;
+        state.history = [];
       }),
 
     /** Переключить фазу игры */
     setGamePhase: (/** @type {GamePhase} */ phase) =>
       set((state) => { state.gamePhase = phase; }),
 
-    /** Установить режим игры (PvP / PvE) */
-    setGameMode: (/** @type {'pvp'|'pve'} */ mode, /** @type {1|2|3} */ difficulty = 1) =>
+    /** Установить режим игры (PvP / PvE / Training / Challenge) */
+    setGameMode: (/** @type {'pvp'|'pve'|'training'|'challenge'} */ mode, /** @type {1|2|3} */ difficulty = 1) =>
       set((state) => { 
         state.gameMode = mode; 
         state.botDifficulty = difficulty;
+        state.history = [];
+        state.currentLevelId = 1;
+        state.strikesUsed = 0;
+        state.challengeResult = null;
       }),
+
+    // ── Training & Challenge экшены ─────────────────────────────────────────
+    
+    pushHistory: (snapshot, score, turnEvents) =>
+      set((state) => {
+        state.history.push({ snapshot, score, turnEvents });
+      }),
+      
+    popHistory: () => {
+      const state = get();
+      if (state.history.length === 0) return null;
+      const popped = state.history[state.history.length - 1];
+      set((draft) => {
+        draft.history.pop();
+        if (popped) {
+          draft.score = popped.score;
+          draft.turnEvents = popped.turnEvents;
+          // В training счетчик промахов и фолы не имеют значения, но сбросим для порядка
+          draft.consecutiveMisses = 0; 
+          draft.dueDebt = { player1: 0, player2: 0 };
+        }
+      });
+      return popped; // Возвращаем, чтобы передать snapshot в physics
+    },
+    
+    requestUndo: () => set((state) => { state.undoTrigger += 1; }),
+    
+    incrementStrikes: () => set((state) => { state.strikesUsed += 1; }),
+    
+    setChallengeResult: (status, stars) => set((state) => {
+      state.challengeResult = { status, stars };
+    }),
+    
+    nextLevel: () => set((state) => {
+      state.currentLevelId += 1;
+      state.strikesUsed = 0;
+      state.challengeResult = null;
+      state.history = [];
+    }),
+    
+    resetChallenge: () => set((state) => {
+      state.strikesUsed = 0;
+      state.challengeResult = null;
+      state.history = [];
+    }),
 
     /** Задать текущего игрока */
     setCurrentPlayer: (/** @type {PlayerId} */ player) =>

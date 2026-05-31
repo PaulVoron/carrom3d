@@ -15,6 +15,7 @@ import { DEBUG_MODE } from '../engine/3d-scene-settings.js';
 import { networkManager } from '../engine/NetworkManager.js';
 import { audioManager } from '../engine/AudioManager.js';
 import { AIBotManager } from '../engine/AIBotManager.js';
+import { CHALLENGE_LEVELS } from '../config/levels.js';
 
 export class GameOrchestrator {
   constructor() {
@@ -111,6 +112,31 @@ export class GameOrchestrator {
       }
     );
 
+    // 9.1. Подписка на Undo trigger (для training)
+    this._undoUnsub = useGameStore.subscribe(
+      (state) => state.undoTrigger,
+      (trigger) => {
+        if (trigger > 0) {
+          const popped = useGameStore.getState().popHistory();
+          if (popped && popped.snapshot) {
+            this.physics.applySnapshot(popped.snapshot);
+            this._syncAfterWarmup();
+            // Возвращаем стейт в PLACEMENT, если мы откатились (или оставляем в AIMING?)
+            // Обычно после Undo мы снова можем целиться (AIMING), но если биток был не заблокирован, то PLACEMENT.
+            // Лучше перевести в AIMING, если биток на столе, или PLACEMENT. 
+            // Пусть будет PLACEMENT, чтобы игрок мог переставить биток.
+            this.input.setGamePhase('PLACEMENT');
+            useGameStore.getState().setGamePhase('PLACEMENT');
+            this.rules._isEvaluating = false;
+            
+            // Восстанавливаем биток как kinematic
+            const strikerPos = this.rules.strikerEntry.mesh.position.clone();
+            this.physics.makeStrikerKinematic(this.rules.strikerEntry, { x: strikerPos.x, y: strikerPos.y, z: strikerPos.z });
+          }
+        }
+      }
+    );
+
     // 9.5. Отправка SYNC_PYRAMID_LIVE для текущего активного игрока (20 FPS)
     this._lastSentPyramidRotation = null;
     this._liveSyncInterval = setInterval(() => {
@@ -196,10 +222,9 @@ export class GameOrchestrator {
    * установленное значение если оно было true ещё до subscribe().
    */
   _startGameOnReady() {
-    console.log('[GameOrchestrator] Initializing _startGameOnReady listener...');
     // Если isReady уже true к моменту вызова — запускаем сразу
     if (useGameStore.getState().isReady) {
-      console.log('[GameOrchestrator] isReady is already true, starting game immediately.');
+      this._applyGameModeSetup();
       this.rules._lastCurrentPlayer = null;
       this.rules.startGame();
       return;
@@ -208,10 +233,9 @@ export class GameOrchestrator {
     const unsub = useGameStore.subscribe(
       (state) => state.isReady,
       (isReady) => {
-        console.log('[GameOrchestrator] isReady changed:', isReady);
         if (!isReady) return;
-        console.log('[GameOrchestrator] Unsubscribing and starting game...');
         unsub();
+        this._applyGameModeSetup();
         this.rules._lastCurrentPlayer = null;
         this.rules.startGame();
       }
@@ -230,11 +254,83 @@ export class GameOrchestrator {
     this._coinColors = null;
 
     useGameStore.getState().initGame(startingPlayer);
+    this._applyGameModeSetup();
+
     this.rules._lastCurrentPlayer = null;
     this.rules._isEvaluating = false;
     this.input.setGamePhase('PLACEMENT');
     this.rules._validateInitialPlacement(useGameStore.getState().currentPlayer);
     this.rules.startGame();
+  }
+
+  _applyGameModeSetup() {
+    const gameMode = useGameStore.getState().gameMode;
+    if (gameMode === 'challenge') {
+      const levelId = useGameStore.getState().currentLevelId;
+      const challengeLevel = CHALLENGE_LEVELS.find(l => l.id === levelId);
+      
+      let usedCoins = 0;
+      for (const entry of this.physics.physicsBodies) {
+        if (entry.mesh.userData.type === 'striker') continue;
+        
+        if (challengeLevel && usedCoins < challengeLevel.coins.length) {
+          const coinData = challengeLevel.coins[usedCoins];
+          const spawnPos = { x: coinData.x, y: 0.0081, z: coinData.z }; // boardTopY + coinHalfH
+          
+          entry.mesh.userData.type = coinData.color;
+          this._setMeshColor(entry.mesh, coinData.color === 'white' ? PHYSICS.colorWhite : PHYSICS.colorBlack);
+          
+          entry.mesh.visible = true;
+          entry.body.setTranslation(spawnPos, true);
+          entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          entry.body.setEnabled(true);
+          usedCoins++;
+        } else {
+          entry.mesh.visible = false;
+          entry.body.setTranslation({ x: 0, y: -10, z: 0 }, true);
+          entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          entry.body.setEnabled(false);
+        }
+      }
+      this._syncAfterWarmup();
+    } else {
+      // Восстанавливаем видимость и физику
+      for (const entry of this.physics.physicsBodies) {
+        if (entry.mesh.userData.type === 'striker') continue;
+        entry.mesh.visible = true;
+        entry.body.setEnabled(true);
+      }
+      
+      const style = useGameStore.getState().settings.gameplay?.pyramidStyle ?? 'classic';
+      if (style === 'random') {
+        const colorArr = Array(9).fill('white').concat(Array(9).fill('black'));
+        for (let i = colorArr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [colorArr[i], colorArr[j]] = [colorArr[j], colorArr[i]];
+        }
+        this._coinColors = colorArr;
+      }
+      
+      let groupIdx = 0;
+      for (const entry of this.physics.physicsBodies) {
+        if (entry.mesh.userData.type === 'striker') continue;
+        if (entry.mesh.userData.type === 'queen') {
+          this._setMeshColor(entry.mesh, PHYSICS.colorRed);
+        } else {
+          let isWhite;
+          if (this._coinColors) {
+            isWhite = this._coinColors[groupIdx] === 'white';
+          } else {
+            isWhite = (groupIdx + 1) % 2 === 0;
+          }
+          entry.mesh.userData.type = isWhite ? 'white' : 'black';
+          this._setMeshColor(entry.mesh, isWhite ? PHYSICS.colorWhite : PHYSICS.colorBlack);
+          groupIdx++;
+        }
+      }
+    }
   }
 
   // ─── RAF-тик ────────────────────────────────────────────────────────────────
@@ -371,20 +467,18 @@ export class GameOrchestrator {
 
       // ── Определяем цвета фишек (классика или рандом) ──────────────────────────
       const pyramidStyle = useGameStore.getState().settings?.gameplay?.pyramidStyle ?? 'classic';
+      
       if (pyramidStyle === 'random') {
-        // Генерируем случайный порядок: 9 белых + 9 чёрных (позиции 1-18)
         const colorArr = Array(9).fill('white').concat(Array(9).fill('black'));
-        // Fisher-Yates shuffle
         for (let i = colorArr.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [colorArr[i], colorArr[j]] = [colorArr[j], colorArr[i]];
         }
-        this._coinColors = colorArr; // индекс 0 = позиция 1
+        this._coinColors = colorArr;
       } else {
-        this._coinColors = null; // классика: чётные — белые, нечётные — чёрные
+        this._coinColors = null;
       }
 
-      // ── Создаём группу пирамиды для визуального вращения ──────────────────────
       this.pyramidGroup = new THREE.Group();
       this.render.scene.add(this.pyramidGroup);
 
@@ -394,12 +488,10 @@ export class GameOrchestrator {
         clone.userData.id = i;
 
         if (i === 0) {
-          // Королева — в центре, не входит в группу вращения отдельно
           clone.userData.type = 'queen';
           this._setMeshColor(clone, PHYSICS.colorRed);
-          this.render.scene.add(clone); // Королева добавляется прямо в сцену
+          this.render.scene.add(clone);
         } else {
-          // Обычные фишки — входят в группу
           let isWhite;
           if (this._coinColors) {
             isWhite = this._coinColors[i - 1] === 'white';
@@ -420,6 +512,7 @@ export class GameOrchestrator {
       }
 
       this.rules.coinRadius = coinRadius;
+
     }
 
     // ── Биток ────────────────────────────────────────────────────────────
@@ -659,6 +752,10 @@ export class GameOrchestrator {
     this.physics.dispose();
     audioManager.dispose();
     this.botManager.dispose();
+    if (this._undoUnsub) {
+      this._undoUnsub();
+      this._undoUnsub = null;
+    }
     if (this._pyramidRotationUnsub) {
       this._pyramidRotationUnsub();
       this._pyramidRotationUnsub = null;

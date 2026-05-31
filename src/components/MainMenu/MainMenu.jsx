@@ -39,6 +39,22 @@ export const MainMenu = ({ onOpenSettings }) => {
     setReady(true);
   };
 
+  const startTrainingGame = () => {
+    setGameMode('training');
+    setNetworkMode('local');
+    setLocalPlayerRole(1); 
+    initGame(1);
+    setReady(true);
+  };
+
+  const startChallengeGame = () => {
+    setGameMode('challenge');
+    setNetworkMode('local');
+    setLocalPlayerRole(1);
+    initGame(1);
+    setReady(true);
+  };
+
   const createOnlineGame = async () => {
     try {
       setNetworkMode('host');
@@ -135,6 +151,12 @@ export const MainMenu = ({ onOpenSettings }) => {
                 </button>
                 <button className={styles.primaryButton} onClick={() => setShowBotOptions(true)}>
                   {t('bot.playVsBot')}
+                </button>
+                <button className={styles.primaryButton} onClick={startTrainingGame}>
+                  {t('menu.training')}
+                </button>
+                <button className={styles.primaryButton} onClick={startChallengeGame}>
+                  {t('menu.challenge')}
                 </button>
                 <div className={styles.divider}>{t('menu.or')}</div>
                 <button className={styles.secondaryButton} onClick={createOnlineGame}>

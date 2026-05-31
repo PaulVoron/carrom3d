@@ -14,6 +14,7 @@ import { START_CAMERA_POSITION } from './3d-scene-settings.js';
 import { networkManager } from './NetworkManager.js';
 import { audioManager } from './AudioManager.js';
 import * as THREE from 'three';
+import { CHALLENGE_LEVELS } from '../config/levels.js';
 
 export class GameRulesManager {
   /**
@@ -179,6 +180,15 @@ export class GameRulesManager {
     });
   }
 
+  dispose() {
+    if (this._pyramidLockUnsub) {
+      this._pyramidLockUnsub();
+    }
+    if (this._timerInterval) {
+      clearInterval(this._timerInterval);
+    }
+  }
+
   // ─── Инициализация ──────────────────────────────────────────────────────────
 
   setStrikerData(entry, spawnY, strikerRadius, coinRadius) {
@@ -233,7 +243,9 @@ export class GameRulesManager {
       const cameraPlayer = (mode === 'local' && !isPvE) ? currentPlayer : role;
 
       if (this._lastCurrentPlayer !== currentPlayer) {
-        this._rotateCameraForPlayer(cameraPlayer);
+        if (mode !== 'training' && mode !== 'challenge') {
+          this._rotateCameraForPlayer(cameraPlayer);
+        }
         this._lastCurrentPlayer = currentPlayer;
 
         if (this.strikerEntry) {
@@ -395,6 +407,7 @@ export class GameRulesManager {
 
     // ── Захватываем состояние ДО паузы (turnEvents обнулятся в evaluateTurn) ──
     const preState       = useGameStore.getState();
+    const gameMode       = preState.gameMode;
     const prevQueenState = preState.queenState;
     const prevPlayer     = preState.currentPlayer;
     const te             = { ...preState.turnEvents };  // snapshot (не ссылка)
@@ -402,6 +415,126 @@ export class GameRulesManager {
     const ownPocketed    = (te.pocketedWhite ?? 0) + (te.pocketedBlack ?? 0);
     const hitSomething   = this._strikerHitSomething;
     // ────────────────────────────────────────────────────────────────────────────
+    
+    // В режиме Challenge проверяем уровень сразу после остановки фишек
+    if (gameMode === 'challenge') {
+      setTimeout(() => {
+        this._isEvaluating = false;
+        const currentLevelId = preState.currentLevelId;
+        const levelConfig = CHALLENGE_LEVELS.find(l => l.id === currentLevelId);
+        
+        // Считаем сколько осталось целевых фишек
+        let targetCoinsRemaining = 0;
+        for (const entry of this.physics.physicsBodies) {
+          if (entry.body.isEnabled() && (entry.mesh.userData.type === 'white' || entry.mesh.userData.type === 'black')) {
+            targetCoinsRemaining++;
+          }
+        }
+        
+        // Биток возвращается всегда после завершения удара в одиночных режимах
+        if (this.strikerEntry) {
+          const resetPos = {
+            x: 0,
+            y: this.strikerSpawnY,
+            z: PLAYER_1_LINE_Z,
+          };
+          this.physics.restoreStriker(this.strikerEntry, resetPos);
+          this.strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
+          this.strikerEntry.mesh.quaternion.set(0, 0, 0, 1);
+        }
+        
+        // Очищаем turnEvents и переводим в PLACEMENT
+        useGameStore.setState({
+          turnEvents: { pocketedWhite: 0, pocketedBlack: 0, pocketedQueen: false, isFoul: false, outOfBounds: [] },
+          gamePhase: 'PLACEMENT'
+        });
+        
+        this.input.setGamePhase('PLACEMENT');
+        this.physics.resetAccumulator();
+        this._validateInitialPlacement(1);
+        
+        if (levelConfig) {
+          const strikes = useGameStore.getState().strikesUsed;
+          if (targetCoinsRemaining === 0) {
+            // Победа! Считаем звезды
+            let stars = 0;
+            if (strikes <= levelConfig.starThresholds[0]) stars = 3;
+            else if (strikes <= levelConfig.starThresholds[1]) stars = 2;
+            else if (strikes <= levelConfig.starThresholds[2]) stars = 1;
+            
+            if (stars > 0) {
+               useGameStore.getState().setChallengeResult('win', stars);
+               this.audio.playVoice('voice_you_win');
+            } else {
+               useGameStore.getState().setChallengeResult('lose', 0);
+               this.audio.playVoice('voice_you_lose');
+            }
+          } else if (strikes >= levelConfig.starThresholds[2]) {
+            // Поражение (превышен лимит ударов для 1 звезды, а фишки еще есть)
+            useGameStore.getState().setChallengeResult('lose', 0);
+            this.audio.playVoice('voice_you_lose');
+          }
+        }
+      }, 1000);
+      return;
+    }
+    
+    // В режиме Training просто возвращаем биток, обнуляем turnEvents и не меняем игрока
+    if (gameMode === 'training') {
+      setTimeout(() => {
+        this._isEvaluating = false;
+        
+        // Биток возвращается всегда после завершения удара в одиночных режимах
+        if (this.strikerEntry) {
+          const resetPos = {
+            x: 0,
+            y: this.strikerSpawnY,
+            z: PLAYER_1_LINE_Z, // Тренировка всегда идет со стороны Игрока 1
+          };
+          this.physics.restoreStriker(this.strikerEntry, resetPos);
+          this.strikerEntry.mesh.position.set(resetPos.x, resetPos.y, resetPos.z);
+          this.strikerEntry.mesh.quaternion.set(0, 0, 0, 1);
+        }
+        
+        // Возвращаем вылетевшие за пределы фишки
+        let returns = [];
+        te.outOfBounds.forEach(type => {
+          if (type === 'queen') returns.push({ type: 'queen' });
+          else returns.push({ type: 'coin', color: type, count: 1 });
+        });
+        
+        const state = useGameStore.getState();
+        // В тренировке забитые фишки прибавляются к счету Игрока 1
+        useGameStore.setState({
+          score: { ...state.score, player1: state.score.player1 + (te.pocketedWhite || 0) + (te.pocketedBlack || 0) },
+          turnEvents: { pocketedWhite: 0, pocketedBlack: 0, pocketedQueen: false, isFoul: false, outOfBounds: [] },
+          gamePhase: 'PLACEMENT'
+        });
+        
+        const assignedPositions = [];
+        const returnsWithPos = returns.map(ret => {
+          if (ret.type === 'queen') {
+            const pos = this.physics.getFreePosition(true, this.coinRadius, assignedPositions);
+            assignedPositions.push({ x: pos.x, z: pos.z, r: this.coinRadius });
+            return { ...ret, pos };
+          }
+          if (ret.type === 'coin') {
+            const positions = [];
+            for (let i = 0; i < ret.count; i++) {
+              const pos = this.physics.getFreePosition(false, this.coinRadius, assignedPositions);
+              assignedPositions.push({ x: pos.x, z: pos.z, r: this.coinRadius });
+              positions.push(pos);
+            }
+            return { ...ret, positions };
+          }
+          return ret;
+        });
+
+        this._executeEndTurnReturns(1, returnsWithPos);
+      }, 1000);
+      return;
+    }
+
 
     // Пауза 1.5 с: в это время phase=MOVING, биток на месте → игрок видит результат
     setTimeout(() => {
@@ -527,9 +660,10 @@ export class GameRulesManager {
       const mode = state.networkMode;
       const role = state.localPlayerRole;
       const isPvE = state.gameMode === 'pve';
+      const isSingleMode = state.gameMode === 'training' || state.gameMode === 'challenge';
       const cameraPlayer = (mode === 'local' && !isPvE) ? nextPlayer : role;
 
-      if (this._lastCurrentPlayer !== nextPlayer && !state.winner) {
+      if (this._lastCurrentPlayer !== nextPlayer && !state.winner && !isSingleMode) {
         this._rotateCameraForPlayer(cameraPlayer);
         this._lastCurrentPlayer = nextPlayer;
       }
@@ -707,8 +841,19 @@ export class GameRulesManager {
   // ─── Удар ────────────────────────────────────────────────────────────────────
 
   shoot(impulseVec, isRemote = false) {
-    const { gamePhase, networkMode } = useGameStore.getState();
+    const state = useGameStore.getState();
+    const { gamePhase, networkMode, gameMode } = state;
     if (gamePhase !== 'AIMING') return;
+
+    // В режиме тренировки сохраняем снимок физики ДО удара
+    if (gameMode === 'training') {
+      const snap = this.physics.getSnapshot();
+      const currentScore = { ...state.score };
+      const currentEvents = { ...state.turnEvents };
+      useGameStore.getState().pushHistory(snap, currentScore, currentEvents);
+    } else if (gameMode === 'challenge') {
+      useGameStore.getState().incrementStrikes();
+    }
 
     // Останавливаем таймер хода при ударе
     this._clearTurnTimer();
@@ -918,9 +1063,12 @@ export class GameRulesManager {
    */
   _startTurnTimer() {
     this._clearTurnTimer();
-    const { settings, isPyramidLocked, winner } = useGameStore.getState();
+    const { settings, isPyramidLocked, winner, gameMode } = useGameStore.getState();
     if (winner) return; // Игра окончена
     if (!isPyramidLocked) return; // Ждём блокировки пирамиды
+    
+    // В одиночных режимах таймер хода не используется
+    if (gameMode === 'training' || gameMode === 'challenge') return;
 
     const limit = settings?.gameplay?.turnTimeLimit ?? 30;
     if (limit === 0) {

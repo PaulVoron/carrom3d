@@ -2,6 +2,8 @@ import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { useTranslation } from '../../i18n/translations';
 import styles from './ScoreBoard.module.scss';
+import { CHALLENGE_LEVELS } from '../../config/levels';
+import { orchestrator } from '../../game/GameOrchestrator';
 
 export const ScoreBoard = () => {
   const score = useGameStore((state) => state.score);
@@ -15,6 +17,12 @@ export const ScoreBoard = () => {
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
   const gameMode = useGameStore((state) => state.gameMode);
   const botDifficulty = useGameStore((state) => state.botDifficulty);
+  
+  // Для новых режимов
+  const strikesUsed = useGameStore((state) => state.strikesUsed);
+  const currentLevelId = useGameStore((state) => state.currentLevelId);
+  const history = useGameStore((state) => state.history);
+  const requestUndo = useGameStore((state) => state.requestUndo);
 
   const { t } = useTranslation();
 
@@ -73,6 +81,59 @@ export const ScoreBoard = () => {
   };
   const timerDisplay = formatTime(timeLeft);
   const isUrgent = timeLeft > 0 && timeLeft <= 5;
+  
+  if (gameMode === 'challenge') {
+    const levelConfig = CHALLENGE_LEVELS.find(l => l.id === currentLevelId);
+    const limit = levelConfig ? levelConfig.starThresholds[2] : 0;
+    
+    return (
+      <div className={styles.container}>
+        <div className={`${styles.playerPanel} ${styles.player1} ${styles.activeP1}`}>
+          <div className={styles.playerName}>{t('menu.challenge')} - {currentLevelId}</div>
+          <div className={styles.playerScore}>
+            {t('score.strikes')}: {strikesUsed} / {limit}
+          </div>
+        </div>
+        <div className={styles.centerPanel}>
+          <button className={styles.undoBtn} onClick={() => orchestrator.restartGame(1)}>
+            {t('score.restart')}
+          </button>
+        </div>
+        <div className={`${styles.playerPanel} ${styles.player2}`} style={{ visibility: 'hidden' }}>
+          <div className={styles.playerName}>Placeholder</div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (gameMode === 'training') {
+    return (
+      <div className={styles.container}>
+        <div className={`${styles.playerPanel} ${styles.player1} ${styles.activeP1}`}>
+          <div className={styles.playerName}>{t('menu.training')}</div>
+          <div className={styles.playerScore}>
+            {score.player1 || 0}
+          </div>
+        </div>
+        <div className={styles.centerPanel}>
+          <button 
+            className={styles.undoBtn} 
+            disabled={history.length === 0} 
+            onClick={() => requestUndo()}
+            style={{ marginRight: '10px' }}
+          >
+            {t('score.undo')} ({history.length})
+          </button>
+          <button className={styles.undoBtn} onClick={() => orchestrator.restartGame(1)}>
+            {t('score.restart')}
+          </button>
+        </div>
+        <div className={`${styles.playerPanel} ${styles.player2}`} style={{ visibility: 'hidden' }}>
+          <div className={styles.playerName}>Placeholder</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
