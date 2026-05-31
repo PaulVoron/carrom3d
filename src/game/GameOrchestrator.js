@@ -243,14 +243,26 @@ export class GameOrchestrator {
   }
 
   restartGame(startingPlayer = null) {
-    if (this.initialSnapshot) {
-      this.physics.applySnapshot(this.initialSnapshot);
-      this._syncAfterWarmup();
-    }
     // Сброс пирамиды: возвращаем группу в исходный поворот
     if (this.pyramidGroup) {
       this.pyramidGroup.rotation.y = 0;
     }
+
+    if (this.initialSnapshot) {
+      this.physics.applySnapshot(this.initialSnapshot);
+      this._syncAfterWarmup();
+
+      // Возвращаем фишки обратно в pyramidGroup для возможности вращения в новой игре
+      if (this.pyramidGroup) {
+        for (const entry of this.physics.physicsBodies) {
+          const type = entry.mesh.userData.type;
+          if (type === 'white' || type === 'black' || type === 'queen') {
+            this.pyramidGroup.add(entry.mesh);
+          }
+        }
+      }
+    }
+    
     this._coinColors = null;
 
     useGameStore.getState().initGame(startingPlayer);
@@ -490,7 +502,7 @@ export class GameOrchestrator {
         if (i === 0) {
           clone.userData.type = 'queen';
           this._setMeshColor(clone, PHYSICS.colorRed);
-          this.render.scene.add(clone);
+          this.pyramidGroup.add(clone);
         } else {
           let isWhite;
           if (this._coinColors) {
