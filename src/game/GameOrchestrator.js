@@ -6,6 +6,7 @@
  */
 
 import * as THREE from 'three';
+import gsap from 'gsap';
 import { PhysicsEngine, PHYSICS } from '../engine/PhysicsEngine.js';
 import { RenderCore } from '../engine/RenderCore.js';
 import { InputController, PLAYER_1_LINE_Z } from '../engine/InputController.js';
@@ -37,6 +38,9 @@ export class GameOrchestrator {
 
     /** Отписка от pyramidStyle в Zustand */
     this._pyramidStyleUnsub = null;
+
+    this.targetPocketsGroup = null;
+    this._pocketAnim = null;
   }
 
   /**
@@ -95,8 +99,8 @@ export class GameOrchestrator {
     };
 
     // 8. Коллбэк лузы → правила
-    this.physics.onPocketEnter = (entry) => {
-      this.rules.handlePocketResult(entry);
+    this.physics.onPocketEnter = (entry, pocketIndex) => {
+      this.rules.handlePocketResult(entry, pocketIndex);
     };
     this.physics.onOutOfBounds = (entry) => {
       this.rules.handleOutOfBounds(entry);
@@ -281,6 +285,8 @@ export class GameOrchestrator {
       const levelId = useGameStore.getState().currentLevelId;
       const challengeLevel = CHALLENGE_LEVELS.find(l => l.id === levelId);
       
+      this._updateTargetPocketsHighlight(challengeLevel);
+
       let usedCoins = 0;
       for (const entry of this.physics.physicsBodies) {
         if (entry.mesh.userData.type === 'striker') continue;
@@ -308,6 +314,7 @@ export class GameOrchestrator {
       }
       this._syncAfterWarmup();
     } else {
+      this._updateTargetPocketsHighlight(null);
       // Восстанавливаем видимость и физику
       for (const entry of this.physics.physicsBodies) {
         if (entry.mesh.userData.type === 'striker') continue;
@@ -342,6 +349,60 @@ export class GameOrchestrator {
           groupIdx++;
         }
       }
+    }
+  }
+
+  _updateTargetPocketsHighlight(levelConfig) {
+    if (!this.targetPocketsGroup) {
+      this.targetPocketsGroup = new THREE.Group();
+      this.render.scene.add(this.targetPocketsGroup);
+    }
+    
+    while (this.targetPocketsGroup.children.length > 0) {
+      const child = this.targetPocketsGroup.children[0];
+      this.targetPocketsGroup.remove(child);
+      child.material.dispose();
+      child.geometry.dispose();
+    }
+    
+    if (this._pocketAnim) {
+      this._pocketAnim.kill();
+      this._pocketAnim = null;
+    }
+
+    if (!levelConfig || !levelConfig.allowedPockets) return;
+
+    const materials = [];
+    const radius = PHYSICS.pocketRadius * 1.1; 
+    const height = 0.01;
+
+    levelConfig.allowedPockets.forEach(pocketIndex => {
+      const center = this.physics.pocketCenters.find(p => p.index === pocketIndex) || this.physics.pocketCenters[pocketIndex];
+      if (!center) return;
+
+      const geo = new THREE.CylinderGeometry(radius, radius, height, 32, 1, false);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        transparent: true,
+        opacity: 0.2,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(center.x, 0.001 + height/2, center.z);
+      this.targetPocketsGroup.add(mesh);
+      materials.push(mat);
+    });
+
+    if (materials.length > 0) {
+      this._pocketAnim = gsap.to(materials, {
+        opacity: 0.6,
+        duration: 0.8,
+        yoyo: true,
+        repeat: -1,
+        ease: "sine.inOut"
+      });
     }
   }
 

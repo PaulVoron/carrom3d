@@ -325,11 +325,34 @@ export class GameRulesManager {
   /**
    * Вызывается из PhysicsEngine.onPocketEnter.
    * @param {{mesh: THREE.Object3D, body: RAPIER.RigidBody}} entry
+   * @param {number} pocketIndex
    */
-  handlePocketResult(entry) {
+  handlePocketResult(entry, pocketIndex) {
     const { mesh, body } = entry;
-    const { currentPlayer } = useGameStore.getState();
+    const { currentPlayer, gameMode, currentLevelId } = useGameStore.getState();
     const type = mesh.userData.type;
+
+    if (gameMode === 'challenge') {
+      const levelConfig = CHALLENGE_LEVELS.find(l => l.id === currentLevelId);
+      const isWrongPocket = levelConfig?.allowedPockets && !levelConfig.allowedPockets.includes(pocketIndex);
+
+      if (isWrongPocket || type === 'striker') {
+        const state = useGameStore.getState();
+        if (!state.turnEvents.isFoul) {
+          useGameStore.getState().recordPocket('foul');
+          console.log(`❌ Штраф: неверная луза (${pocketIndex}) или биток! Откат состояния.`);
+          this.audio.playVoice('voice_foul');
+          
+          setTimeout(() => {
+            const popped = useGameStore.getState().popHistory();
+            if (popped && popped.snapshot) {
+              this.physics.applySnapshot(popped.snapshot);
+            }
+          }, 0);
+        }
+        return; // Пропускаем обычную логику забивания фишки
+      }
+    }
 
     if (type === 'striker') {
       recordPocket('foul');
@@ -845,14 +868,15 @@ export class GameRulesManager {
     const { gamePhase, networkMode, gameMode } = state;
     if (gamePhase !== 'AIMING') return;
 
-    // В режиме тренировки сохраняем снимок физики ДО удара
-    if (gameMode === 'training') {
+    // В режиме тренировки и челленджа сохраняем снимок физики ДО удара
+    if (gameMode === 'training' || gameMode === 'challenge') {
       const snap = this.physics.getSnapshot();
       const currentScore = { ...state.score };
       const currentEvents = { ...state.turnEvents };
       useGameStore.getState().pushHistory(snap, currentScore, currentEvents);
-    } else if (gameMode === 'challenge') {
-      useGameStore.getState().incrementStrikes();
+      if (gameMode === 'challenge') {
+        useGameStore.getState().incrementStrikes();
+      }
     }
 
     // Останавливаем таймер хода при ударе

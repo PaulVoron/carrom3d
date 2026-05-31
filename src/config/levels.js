@@ -2,6 +2,7 @@ export const CHALLENGE_LEVELS = [
   {
     id: 1,
     starThresholds: [1, 2, 3], // 1 удар = 3 звезды, 2 удара = 2 звезды, 3 удара = 1 звезда
+    allowedPockets: [0, 1], // Верхние лузы
     coins: [
       { color: 'white', x: 0.2, z: 0.2 },
     ],
@@ -9,6 +10,7 @@ export const CHALLENGE_LEVELS = [
   {
     id: 2,
     starThresholds: [2, 3, 4],
+    allowedPockets: [2], // Нижняя правая луза
     coins: [
       { color: 'white', x: 0.15, z: 0.15 },
       { color: 'white', x: -0.15, z: -0.15 },
@@ -17,6 +19,7 @@ export const CHALLENGE_LEVELS = [
   {
     id: 3,
     starThresholds: [1, 2, 3],
+    allowedPockets: [0, 2], // Верхняя левая и нижняя правая
     coins: [
       { color: 'white', x: 0.25, z: 0.0 }, // Фишка у борта (cut shot)
     ],

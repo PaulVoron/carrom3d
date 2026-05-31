@@ -204,10 +204,10 @@ export class PhysicsEngine {
     // Сохраняем центры луз (THREE.Vector3 создаётся снаружи через коллбэк,
     // здесь храним просто { x, z })
     this.pocketCenters = [
-      { x: maxX - po, y: 0, z: maxZ - po },
-      { x: maxX - po, y: 0, z: minZ + po },
-      { x: minX + po, y: 0, z: maxZ - po },
-      { x: minX + po, y: 0, z: minZ + po },
+      { x: minX + po, y: 0, z: minZ + po, index: 0 }, // 0: Top Left
+      { x: maxX - po, y: 0, z: minZ + po, index: 1 }, // 1: Top Right
+      { x: maxX - po, y: 0, z: maxZ - po, index: 2 }, // 2: Bottom Right
+      { x: minX + po, y: 0, z: maxZ - po, index: 3 }, // 3: Bottom Left
     ];
 
     const boardTopY = 0.001;
@@ -477,7 +477,7 @@ export class PhysicsEngine {
       // ── Финальное удаление (падение под стол) ──────────────────────────
       if (pos.y < PHYSICS.pocketFallDepth) {
         if (mesh.userData.isFalling) {
-          if (this.onPocketEnter) this.onPocketEnter(entry);
+          if (this.onPocketEnter) this.onPocketEnter(entry, mesh.userData.fallingPocketIndex);
         } else {
           if (this.onOutOfBounds) this.onOutOfBounds(entry);
         }
@@ -517,6 +517,7 @@ export class PhysicsEngine {
           collider.setCollisionGroups(MASK_COIN_FALLING);
           body.wakeUp();
           mesh.userData.isFalling = true;
+          mesh.userData.fallingPocketIndex = nearestCenter.index;
         }
 
         // Горизонтальное торможение
