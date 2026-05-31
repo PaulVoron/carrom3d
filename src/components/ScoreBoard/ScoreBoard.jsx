@@ -95,12 +95,9 @@ export const ScoreBoard = () => {
           </div>
         </div>
         <div className={styles.centerPanel}>
-          <button className={styles.undoBtn} onClick={() => orchestrator.restartGame(1)}>
+          <button className={styles.undoBtn} style={{ width: '100%' }} onClick={() => orchestrator.restartGame(1)}>
             {t('score.restart')}
           </button>
-        </div>
-        <div className={`${styles.playerPanel} ${styles.player2}`} style={{ visibility: 'hidden' }}>
-          <div className={styles.playerName}>Placeholder</div>
         </div>
       </div>
     );
@@ -116,20 +113,23 @@ export const ScoreBoard = () => {
           </div>
         </div>
         <div className={styles.centerPanel}>
-          <button 
-            className={styles.undoBtn} 
-            disabled={history.length === 0} 
-            onClick={() => requestUndo()}
-            style={{ marginRight: '10px' }}
-          >
-            {t('score.undo')} ({history.length})
-          </button>
-          <button className={styles.undoBtn} onClick={() => orchestrator.restartGame(1)}>
-            {t('score.restart')}
-          </button>
-        </div>
-        <div className={`${styles.playerPanel} ${styles.player2}`} style={{ visibility: 'hidden' }}>
-          <div className={styles.playerName}>Placeholder</div>
+          <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+            <button 
+              className={styles.undoBtn} 
+              disabled={history.length === 0} 
+              onClick={() => requestUndo()}
+              style={{ flex: 1 }}
+            >
+              {t('score.undo')} ({history.length})
+            </button>
+            <button 
+              className={styles.undoBtn} 
+              onClick={() => orchestrator.restartGame(1)}
+              style={{ flex: 1 }}
+            >
+              {t('score.restart')}
+            </button>
+          </div>
         </div>
       </div>
     );
