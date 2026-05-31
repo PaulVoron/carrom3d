@@ -181,7 +181,7 @@ export const MainMenu = ({ onOpenSettings }) => {
           </div>
         )}
       </div>
-      <div className={styles.versionText}>Version 1.0.6
+      <div className={styles.versionText}>Version 1.1.0
         <br />
         All rights reserved 2026 ©
       </div>
