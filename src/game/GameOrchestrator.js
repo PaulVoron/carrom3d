@@ -152,7 +152,7 @@ export class GameOrchestrator {
       (state) => state.settings.gameplay?.pyramidStyle,
       (style) => {
         if (!useGameStore.getState().isPyramidLocked && this.pyramidGroup) {
-          this._applyPyramidStyle(style);
+          this._applyPyramidStyle(style, true);
           const state = useGameStore.getState();
           if (state.networkMode === 'host') {
             networkManager.send('SYNC_PYRAMID_LIVE', { 
@@ -518,7 +518,7 @@ export class GameOrchestrator {
 
     // Убедимся, что цвета сгенерированы/обновлены перед запеканием
     const style = state.settings.gameplay?.pyramidStyle ?? 'classic';
-    this._applyPyramidStyle(style);
+    this._applyPyramidStyle(style, false);
     
     const colors = this._coinColors; // null для классики
 
@@ -534,40 +534,6 @@ export class GameOrchestrator {
     // Блокируем пирамиду в сторе
     state.lockPyramid();
     console.log('🔒 Пирамида применена и заблокирована.');
-  }
-
-  /**
-   * Генерирует и применяет стиль пирамиды (классика или рандом) к мешам.
-   * Вызывается при создании пирамиды или изменении настроек до старта.
-   */
-  _applyPyramidStyle(style) {
-    if (!this.pyramidGroup) return;
-
-    if (style === 'random') {
-      const colorArr = Array(9).fill('white').concat(Array(9).fill('black'));
-      for (let i = colorArr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [colorArr[i], colorArr[j]] = [colorArr[j], colorArr[i]];
-      }
-      this._coinColors = colorArr;
-    } else {
-      this._coinColors = null;
-    }
-
-    let groupIdx = 0;
-    for (const child of this.pyramidGroup.children) {
-      if (child.userData.type === 'queen') continue;
-      
-      let isWhite;
-      if (this._coinColors) {
-        isWhite = this._coinColors[groupIdx] === 'white';
-      } else {
-        isWhite = (groupIdx + 1) % 2 === 0;
-      }
-      child.userData.type = isWhite ? 'white' : 'black';
-      this._setMeshColor(child, isWhite ? PHYSICS.colorWhite : PHYSICS.colorBlack);
-      groupIdx++;
-    }
   }
 
   /**
@@ -610,16 +576,18 @@ export class GameOrchestrator {
    * Генерирует и применяет стиль пирамиды (классика или рандом) к мешам.
    * Вызывается при создании пирамиды или изменении настроек до старта.
    */
-  _applyPyramidStyle(style) {
+  _applyPyramidStyle(style, forceRandomize = false) {
     if (!this.pyramidGroup) return;
 
     if (style === 'random') {
-      const colorArr = Array(9).fill('white').concat(Array(9).fill('black'));
-      for (let i = colorArr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [colorArr[i], colorArr[j]] = [colorArr[j], colorArr[i]];
+      if (!this._coinColors || forceRandomize) {
+        const colorArr = Array(9).fill('white').concat(Array(9).fill('black'));
+        for (let i = colorArr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [colorArr[i], colorArr[j]] = [colorArr[j], colorArr[i]];
+        }
+        this._coinColors = colorArr;
       }
-      this._coinColors = colorArr;
     } else {
       this._coinColors = null;
     }
@@ -662,15 +630,17 @@ export class GameOrchestrator {
     for (const child of children) {
       // Получаем мировую позицию
       child.getWorldPosition(worldPos);
+      const worldQuat = child.getWorldQuaternion(new THREE.Quaternion());
 
       // Находим соответствующее физическое тело
       const entry = this.physics.physicsBodies.find(e => e.mesh === child);
       if (entry && entry.body) {
         // Обновляем позицию тела в Rapier
         const current = entry.body.translation();
-        entry.body.setTranslation({ x: worldPos.x, y: current.y, z: worldPos.z }, true);
-        entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        entry.body.setTranslation({ x: worldPos.x, y: current.y, z: worldPos.z }, false);
+        entry.body.setRotation({ x: worldQuat.x, y: worldQuat.y, z: worldQuat.z, w: worldQuat.w }, false);
+        entry.body.setLinvel({ x: 0, y: 0, z: 0 }, false);
+        entry.body.setAngvel({ x: 0, y: 0, z: 0 }, false);
       }
 
       // Переносим меш из группы в сцену с сохранением мировых координат
