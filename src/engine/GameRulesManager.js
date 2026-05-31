@@ -1118,8 +1118,8 @@ export class GameRulesManager {
 
     console.log('⏰ Время хода вышло! Фол — передача хода.');
 
-    // Отмечаем фол в turnEvents
-    useGameStore.getState().recordPocket('foul');
+    // Отмечаем фол по тайм-ауту в turnEvents (без штрафа фишкой)
+    useGameStore.getState().recordPocket('timeFoul');
 
     // Если биток был уже в режиме AIMING — переводим в MOVING чтобы _endTurn сработал
     // Для PLACEMENT — напрямую запускаем _endTurn

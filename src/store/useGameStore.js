@@ -87,6 +87,7 @@ const initialTurnEvents = () => ({
   pocketedBlack: 0,
   pocketedQueen: false,
   isFoul: false,
+  isTimeFoul: false,
   outOfBounds: [],
 });
 
@@ -397,13 +398,17 @@ export const useGameStore = create(
     // ── Ивенты хода ────────────────────────────────────────────────────────
 
     /** Записать событие попадания в лузу */
-    recordPocket: (/** @type {'white' | 'black' | 'queen' | 'foul'} */ type) =>
+    recordPocket: (/** @type {'white' | 'black' | 'queen' | 'foul' | 'timeFoul'} */ type) =>
       set((state) => {
         switch (type) {
           case 'white': state.turnEvents.pocketedWhite++; break;
           case 'black': state.turnEvents.pocketedBlack++; break;
           case 'queen': state.turnEvents.pocketedQueen = true; break;
           case 'foul': state.turnEvents.isFoul = true; break;
+          case 'timeFoul':
+            state.turnEvents.isFoul = true;
+            state.turnEvents.isTimeFoul = true;
+            break;
         }
       }),
 
@@ -564,16 +569,20 @@ export const useGameStore = create(
           coinsToReturn[ownColor] += ownPocketed;
           ownPocketed = 0;
 
-          // Штраф в 1 фишку
-          if (newScore[ownColor] > 0) {
-            newScore[ownColor] -= 1;
-            coinsToReturn[ownColor] += 1;
-          } else {
-            newDueDebt[pKey] += 1;
+          if (!turnEvents.isTimeFoul) {
+            // Штраф в 1 фишку
+            if (newScore[ownColor] > 0) {
+              newScore[ownColor] -= 1;
+              coinsToReturn[ownColor] += 1;
+            } else {
+              newDueDebt[pKey] += 1;
+            }
           }
         } else {
-          // Если цвета еще нет, но есть фол (забит биток) - долг начисляется
-          newDueDebt[pKey] += 1;
+          if (!turnEvents.isTimeFoul) {
+            // Если цвета еще нет, но есть фол (забит биток) - долг начисляется
+            newDueDebt[pKey] += 1;
+          }
         }
       } else {
         if (ownColor && newDueDebt[pKey] > 0 && ownPocketed > 0) {
