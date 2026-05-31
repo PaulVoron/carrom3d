@@ -293,7 +293,7 @@ export class GameOrchestrator {
         
         if (challengeLevel && usedCoins < challengeLevel.coins.length) {
           const coinData = challengeLevel.coins[usedCoins];
-          const spawnPos = { x: coinData.x, y: 0.0081, z: coinData.z }; // boardTopY + coinHalfH
+          const spawnPos = { x: coinData.x, y: 0.004, z: coinData.z }; // boardTopY + coinHalfH
           
           entry.mesh.userData.type = coinData.color;
           this._setMeshColor(entry.mesh, coinData.color === 'white' ? PHYSICS.colorWhite : PHYSICS.colorBlack);
