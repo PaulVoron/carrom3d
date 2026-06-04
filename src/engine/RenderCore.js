@@ -257,7 +257,7 @@ export class RenderCore {
     const floor = new THREE.Mesh(geo, mat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
-    floor.position.y = MODEL_CENTER_POSITION;
+    floor.position.y = -0.75;
     floor.frustumCulled = false;
     this.scene.add(floor);
   }

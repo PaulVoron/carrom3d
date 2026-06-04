@@ -7,25 +7,25 @@ export const DEV_MODE_HELPERS = false;
 export const DEBUG_MODE = false; // Визуальный дебаг физических коллизий и триггерных зон луз
 
 export const MODEL_CENTER_POSITION = 0;
-export const START_CAMERA_POSITION = [0.005, 0.428, 1.113];
+export const START_CAMERA_POSITION = [0.000, 0.65, 1.05];
 export const ADD_FLOOR = false;
 
 export const CONTROL_TARGET_POSITION_Y = 0;
 export const CONTROLS_ENABLE_PAN = true;
 export const CONTROLS_FIX_VERTICAL_PAN = false; // фіксує панування по вертикалі
 
-export const BACKGROUND_COLOR = 0xffffff; // 0xffffff (default);
-export const SHADOW_TRANSPARENCY = 0.125;
+export const BACKGROUND_COLOR = 0x656565; // 0xffffff (default);
+export const SHADOW_TRANSPARENCY = 0.08125;
 export const TONE_MAPPING_EXPOSURE = 1.0; // 1.0 (default)
 
 export const ENVIRONMENT_MAP = '/environment/brown_photostudio_07_1k.hdr'; // neutral.hdr (default)
-export const ENVIRONMENT_MAP_INTENSITY = 1.2;  //  1.0  (default)
+export const ENVIRONMENT_MAP_INTENSITY = 1.3;  //  1.0  (default)
 export const ENVIRONMENT_MAP_FLIP_X = false;   // false (default)
 export const ENVIRONMENT_MAP_ROTATEBLE = true; // false (default)
 export const ENVIRONMENT_MAP_ANGLE = 180;       //   0   (default)
 
 export const ADD_DIRLIGHT = true;
-export const DIRLIGHT_INTENSITY = 0.9;
+export const DIRLIGHT_INTENSITY = 1.0;
 export const DIRLIGHT_INTENSITY_ANDROID = 0.9;
 
 export const ADD_POINTLIGHT = false; // false (default)
