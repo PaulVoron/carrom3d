@@ -13,6 +13,7 @@ import * as dat from 'dat.gui';
 import gsap from 'gsap';
 
 import {
+  SET_BACKGROUND,
   TONE_MAPPING_EXPOSURE,
   BACKGROUND_COLOR,
   ENVIRONMENT_MAP,
@@ -20,6 +21,9 @@ import {
   ENVIRONMENT_MAP_ANGLE,
   ENVIRONMENT_MAP_FLIP_X,
   ENVIRONMENT_MAP_ROTATEBLE,
+  ENVIRONMENT_AS_BACKGROUND,
+  ENVIRONMENT_BACKGROUND_INTENSITY,
+  ENVIRONMENT_BACKGROUND_BLURRINESS,
   START_CAMERA_POSITION,
   CONTROL_TARGET_POSITION_Y,
   CONTROLS_ENABLE_PAN,
@@ -120,7 +124,11 @@ export class RenderCore {
 
   _initScene() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(BACKGROUND_COLOR || 0xffffff);
+    if (SET_BACKGROUND) {
+      this.scene.background = new THREE.Color(BACKGROUND_COLOR || 0xffffff);
+    } else {
+      this.scene.background = null;
+    }
     if (DEV_MODE_HELPERS) {
       this.scene.add(new THREE.AxesHelper(10));
     }
@@ -293,6 +301,28 @@ export class RenderCore {
 
       this.scene.environment = this._envMap;
       if (isNewThreeJs) this.scene.environmentIntensity = intensity;
+
+      if (ENVIRONMENT_AS_BACKGROUND) {
+        // Отображаем карту окружения на заднем плане (скайбоксе) сцены
+        this.scene.background = this._envMap;
+
+        // Настройка видимости фоновой карты окружения:
+        // - backgroundIntensity: яркость/интенсивность фона (0.0 — полностью тёмный, 1.0 — оригинальная яркость)
+        // - backgroundBlurriness: степень размытия фона (0.0 — чёткое изображение, 1.0 — максимальное размытие)
+        if ('backgroundIntensity' in this.scene) {
+          this.scene.backgroundIntensity = ENVIRONMENT_BACKGROUND_INTENSITY;
+        }
+        if ('backgroundBlurriness' in this.scene) {
+          this.scene.backgroundBlurriness = ENVIRONMENT_BACKGROUND_BLURRINESS;
+        }
+      } else {
+        // Если карта окружения не используется как фон, применяем цвет или сбрасываем в прозрачность
+        if (SET_BACKGROUND) {
+          this.scene.background = new THREE.Color(BACKGROUND_COLOR || 0xffffff);
+        } else {
+          this.scene.background = null;
+        }
+      }
 
       texture.dispose();
       pmrem.dispose();

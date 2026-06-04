@@ -14,6 +14,7 @@ export const CONTROL_TARGET_POSITION_Y = 0;
 export const CONTROLS_ENABLE_PAN = true;
 export const CONTROLS_FIX_VERTICAL_PAN = false; // фіксує панування по вертикалі
 
+export const SET_BACKGROUND = false; // true — использовать сплошной цвет BACKGROUND_COLOR, false — сделать WebGL прозрачным для CSS-фона
 export const BACKGROUND_COLOR = 0x656565; // 0xffffff (default);
 export const SHADOW_TRANSPARENCY = 0.08125;
 export const TONE_MAPPING_EXPOSURE = 1.0; // 1.0 (default)
@@ -23,6 +24,10 @@ export const ENVIRONMENT_MAP_INTENSITY = 1.3;  //  1.0  (default)
 export const ENVIRONMENT_MAP_FLIP_X = false;   // false (default)
 export const ENVIRONMENT_MAP_ROTATEBLE = true; // false (default)
 export const ENVIRONMENT_MAP_ANGLE = 180;       //   0   (default)
+
+export const ENVIRONMENT_AS_BACKGROUND = false; // true (за замовчуванням), щоб фон відображався позаду сцени
+export const ENVIRONMENT_BACKGROUND_INTENSITY = 0.7; // Зменшена інтенсивність фону, щоб він був менш нав'язливим
+export const ENVIRONMENT_BACKGROUND_BLURRINESS = 0.2; // Легке розмиття для ефекту боке
 
 export const ADD_DIRLIGHT = true;
 export const DIRLIGHT_INTENSITY = 1.0;

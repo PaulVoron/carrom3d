@@ -181,12 +181,12 @@ export const MainMenu = ({ onOpenSettings }) => {
           </div>
         )}
       </div>
-      <div className={styles.versionText}>Version 1.1.2
+      <div className={styles.versionText}>Version 1.2.0
         <br />
         All rights reserved 2026 ©
       </div>
       <div className={styles.authorText}>
-        Developed by Pavlo Voronin, 2026
+        Developed by Pavlo Voronin
         <br />
         <a href="mailto:voron.paul@gmail.com" className={styles.emailLink}>
           voron.paul@gmail.com
