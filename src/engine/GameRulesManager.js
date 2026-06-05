@@ -488,6 +488,9 @@ export class GameRulesManager {
             if (stars > 0) {
                useGameStore.getState().setChallengeResult('win', stars);
                this.audio.playVoice('voice_you_win');
+               if (stars === 3) {
+                 this.audio.playGlobal('ui_applause', 0.3);
+               }
             } else {
                useGameStore.getState().setChallengeResult('lose', 0);
                this.audio.playVoice('voice_you_lose');
