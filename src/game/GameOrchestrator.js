@@ -373,8 +373,8 @@ export class GameOrchestrator {
     if (!levelConfig || !levelConfig.allowedPockets) return;
 
     const materials = [];
-    const radius = PHYSICS.pocketRadius * 1.1; 
-    const height = 0.01;
+    const radius = PHYSICS.pocketRadius * 1.05; 
+    const height = 0.018;
 
     levelConfig.allowedPockets.forEach(pocketIndex => {
       const center = this.physics.pocketCenters.find(p => p.index === pocketIndex) || this.physics.pocketCenters[pocketIndex];
