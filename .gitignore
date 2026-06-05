@@ -1,6 +1,7 @@
 node_modules/
 .vscode/
 TEMP/
+temp_assets/
 eslint.config.mjs
 temp.html
 .DS_Store

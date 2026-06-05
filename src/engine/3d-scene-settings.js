@@ -7,7 +7,7 @@ export const DEV_MODE_HELPERS = false;
 export const DEBUG_MODE = false; // Визуальный дебаг физических коллизий и триггерных зон луз
 
 export const MODEL_CENTER_POSITION = 0;
-export const START_CAMERA_POSITION = [0.000, 0.65, 1.05];
+export const START_CAMERA_POSITION = [0.000, 0.65, 1.12];
 export const ADD_FLOOR = false;
 
 export const CONTROL_TARGET_POSITION_Y = 0;
