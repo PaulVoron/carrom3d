@@ -12,7 +12,7 @@ import { RenderCore } from '../engine/RenderCore.js';
 import { InputController, PLAYER_1_LINE_Z } from '../engine/InputController.js';
 import { GameRulesManager } from '../engine/GameRulesManager.js';
 import { useGameStore } from '../store/useGameStore.js';
-import { DEBUG_MODE } from '../engine/3d-scene-settings.js';
+import { DEBUG_MODE, MODELS } from '../engine/3d-scene-settings.js';
 import { networkManager } from '../engine/NetworkManager.js';
 import { audioManager } from '../engine/AudioManager.js';
 import { AIBotManager } from '../engine/AIBotManager.js';
@@ -64,7 +64,7 @@ export class GameOrchestrator {
     const audioPreloadPromise = audioManager.preload();
 
     // 4. Загружаем модель (параллельно с preload аудио)
-    const model = await this.render.loadModel('/models/carrom-draco.glb');
+    const model = await this.render.loadModel(MODELS.default.path);
     if (!model) return;
 
     // 5. Настраиваем физические тела
