@@ -39,14 +39,12 @@ function VolumeSlider({ label, value, onChange }) {
 
 // ─── SettingsModal ────────────────────────────────────────────────────────────
 
-export const SettingsModal = ({ isOpen, onClose }) => {
+export const SettingsModal = ({ isOpen, onClose, activeTab = 'audio', setActiveTab }) => {
   const { t } = useTranslation();
   const settings      = useGameStore((state) => state.settings);
   const language      = useGameStore((state) => state.language);
   const updateSetting = useGameStore((state) => state.updateSetting);
   const setLanguage   = useGameStore((state) => state.setLanguage);
-
-  const [activeTab, setActiveTab] = useState('audio');
 
   // Закрытие по Escape
   useEffect(() => {

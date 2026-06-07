@@ -4,7 +4,7 @@ import { networkManager } from '../../engine/NetworkManager';
 import { useTranslation } from '../../i18n/translations';
 import styles from './MainMenu.module.scss';
 
-export const MainMenu = ({ onOpenSettings }) => {
+export const MainMenu = ({ onOpenSettings, isSettingsOpen, settingsTab }) => {
   const networkMode = useGameStore((state) => state.networkMode);
   const connectionStatus = useGameStore((state) => state.connectionStatus);
   const roomCode = useGameStore((state) => state.roomCode);
@@ -102,8 +102,10 @@ export const MainMenu = ({ onOpenSettings }) => {
     }
   };
 
+  const isCustomizeOpen = isSettingsOpen && settingsTab === 'customize';
+
   return (
-    <div className={styles.overlay}>
+    <div className={`${styles.overlay} ${isCustomizeOpen ? styles.overlayShiftedLeft : ''}`}>
       <div className={styles.menuCard}>
         <h1 className={styles.title}>{t('menu.title')}</h1>
         

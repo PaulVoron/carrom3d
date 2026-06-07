@@ -18,6 +18,7 @@ export const App = () => {
   const isReady = useGameStore((state) => state.isReady);
   const gameMode = useGameStore((state) => state.gameMode);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('audio');
   const { t } = useTranslation();
 
   return (
@@ -36,10 +37,16 @@ export const App = () => {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        activeTab={settingsTab}
+        setActiveTab={setSettingsTab}
       />
 
       {!isReady && (
-        <MainMenu onOpenSettings={() => setIsSettingsOpen(true)} />
+        <MainMenu 
+          onOpenSettings={() => setIsSettingsOpen(true)} 
+          isSettingsOpen={isSettingsOpen}
+          settingsTab={settingsTab}
+        />
       )}
 
       {isReady && (

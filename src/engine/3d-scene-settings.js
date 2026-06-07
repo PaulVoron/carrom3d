@@ -50,7 +50,7 @@ export const ENABLE_ASSEMBLY_ANIMATION = false;
 
 export const MODELS = {
   default: {
-    path: '/public/models/carrom2-draco.glb',
+    path: '/models/carrom2-draco.glb',
     model: null,
   }
 };
