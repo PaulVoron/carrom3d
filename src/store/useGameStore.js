@@ -20,6 +20,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { subscribeWithSelector } from 'zustand/middleware';
+import textures from '../engine/textures.js';
 
 
 // ─── LocalStorage Persistence (Settings Only) ─────────────────────────────────
@@ -34,18 +35,34 @@ const DEFAULT_SETTINGS = {
     voice:  1.0,
     ui:     1.0,
   },
-  skins: {
-    boardTexture:   '/textures/board_default.jpg',
-    frameTexture:   '/textures/frame_default.jpg',
-    strikerTexture: '/textures/striker_default.jpg',
-    coinColorSet:   'default', // 'default' | 'golden' | 'classic'
-    environmentMap: '/hdr/default.hdr',
-  },
   gameplay: {
     turnTimeLimit: 30,       // 15 | 30 | 60 | 180 | 0 (unlimited)
     pyramidStyle:  'classic', // 'classic' | 'random'
   },
+  customization: {
+    strikerId:      'stiker_0',
+    coinSkinId:     'blackWhite',
+    boardSurfaceId: 'plywood_0',
+    boardPatternId: 'classic',
+    frameId:        'naturel',
+    frameFinish:    'matte',     // 'matte' | 'glossy'
+    pocketCornerId: 'sameAsFrame',
+    environmentId:  'neutral',
+  },
 };
+
+/** Вычислить currentCoinNames из ID скина и языка */
+function computeCoinNames(coinSkinId, language) {
+  const coinCfg = textures.coins[coinSkinId];
+  if (!coinCfg || !coinCfg.nameInGame) {
+    return { white: 'White', black: 'Black' };
+  }
+  const lang = language ?? 'uk';
+  return {
+    white: coinCfg.nameInGame.white[lang] ?? coinCfg.nameInGame.white['en'] ?? 'White',
+    black: coinCfg.nameInGame.black[lang] ?? coinCfg.nameInGame.black['en'] ?? 'Black',
+  };
+}
 
 /** Загрузить настройки из localStorage (с fallback на дефолты) */
 function loadSettings() {
@@ -55,9 +72,9 @@ function loadSettings() {
     const parsed = JSON.parse(raw);
     // Deep merge: сохраняем дефолты для отсутствующих ключей
     return {
-      volume:   { ...DEFAULT_SETTINGS.volume,   ...(parsed.volume   ?? {}) },
-      skins:    { ...DEFAULT_SETTINGS.skins,    ...(parsed.skins    ?? {}) },
-      gameplay: { ...DEFAULT_SETTINGS.gameplay, ...(parsed.gameplay ?? {}) },
+      volume:        { ...DEFAULT_SETTINGS.volume,        ...(parsed.volume        ?? {}) },
+      gameplay:      { ...DEFAULT_SETTINGS.gameplay,      ...(parsed.gameplay      ?? {}) },
+      customization: { ...DEFAULT_SETTINGS.customization, ...(parsed.customization ?? {}) },
       language: parsed.language ?? 'uk',
     };
   } catch {
@@ -100,6 +117,12 @@ export const useGameStore = create(
     // ── Настройки (строго локальные, не синхронизируются по сети) ──────────
     /** Загружаем из localStorage при первом создании стора */
     settings: loadSettings(),
+
+    /** Динамические имена фишек — обновляются при смене скина или языка */
+    currentCoinNames: computeCoinNames(
+      loadSettings().customization?.coinSkinId ?? 'blackWhite',
+      loadSettings().language ?? 'uk'
+    ),
 
     // ── Состояние игры ──────────────────────────────────────────────────────
     /** @type {'pvp' | 'pve' | 'training' | 'challenge'} */
@@ -328,6 +351,9 @@ export const useGameStore = create(
     setLanguage: (/** @type {'uk' | 'en'} */ lang) =>
       set((state) => {
         state.language = lang;
+        // Пересчитываем имена фишек для нового языка
+        const coinSkinId = state.settings.customization?.coinSkinId ?? 'blackWhite';
+        state.currentCoinNames = computeCoinNames(coinSkinId, lang);
         // Сохраняем язык тоже в localStorage вместе с настройками
         const s = get().settings;
         saveSettings({ ...s, language: lang });
@@ -335,13 +361,29 @@ export const useGameStore = create(
 
     /**
      * Обновить одну настройку и сразу сохранить в localStorage.
-     * @param {'volume' | 'skins' | 'gameplay'} category
+     * @param {'volume' | 'gameplay'} category
      * @param {string} key
      * @param {*} value
      */
     updateSetting: (category, key, value) =>
       set((state) => {
         state.settings[category][key] = value;
+        saveSettings({ ...state.settings, language: get().language });
+      }),
+
+    /**
+     * Обновить параметр кастомизации и сохранить в localStorage.
+     * При смене coinSkinId — автоматически обновляет currentCoinNames.
+     * @param {string} key — ключ из settings.customization
+     * @param {*} value
+     */
+    updateCustomization: (key, value) =>
+      set((state) => {
+        state.settings.customization[key] = value;
+        // При смене скина фишек — пересчитываем имена
+        if (key === 'coinSkinId') {
+          state.currentCoinNames = computeCoinNames(value, state.language);
+        }
         saveSettings({ ...state.settings, language: get().language });
       }),
 

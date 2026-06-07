@@ -403,3 +403,39 @@ $radius-sm:       8px;
   box-shadow: 0 2px 14px $accent-glow;
   transform: translateY(-1px);
 }
+
+// ── Customization Layout Modifiers ────────────────────────────────────────────
+
+.backdropTransparent {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  pointer-events: none; // Позволяем кликать сквозь подложку (по самой доске)
+  
+  // Но модалка внутри всё равно должна ловить клики
+  & > * {
+    pointer-events: auto;
+  }
+}
+
+.modalRight {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%) !important;
+  margin: 0;
+  max-height: 90vh;
+  width: min(420px, 90vw);
+  
+  @media (max-width: 768px) {
+    right: 0;
+    top: auto;
+    bottom: 0;
+    transform: none !important;
+    width: 100%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    max-height: 70vh;
+  }
+}
+

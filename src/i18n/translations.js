@@ -149,6 +149,19 @@ export const translations = {
     'skins.env.default':          'Студія',
     'skins.env.outdoor':          'Заміський будинок',
     'skins.env.night':            'Нічне місто',
+
+    // ── Кастомізація — назви категорій ────────────────────────────────────────────
+    'custom.striker':             'Біток',
+    'custom.coins':               'Фішки',
+    'custom.boardSurface':        'Поверхня',
+    'custom.boardPattern':        'Малюнок',
+    'custom.frames':              'Борти',
+    'custom.frameFinish':         'Тип покриття',
+    'custom.matte':               'Матовий',
+    'custom.glossy':              'Глянцювий',
+    'custom.corners':             'Кути лунок',
+    'custom.environment':         'Оточення',
+    'custom.sameAsFrame':         'Відображає борти',
   },
 
   en: {
@@ -288,6 +301,19 @@ export const translations = {
     'skins.env.default':          'Studio',
     'skins.env.outdoor':          'Country House',
     'skins.env.night':            'Night City',
+
+    // ── Customization — category labels ──────────────────────────────────────────────
+    'custom.striker':             'Striker',
+    'custom.coins':               'Coins',
+    'custom.boardSurface':        'Board Surface',
+    'custom.boardPattern':        'Board Pattern',
+    'custom.frames':              'Frames',
+    'custom.frameFinish':         'Finish Type',
+    'custom.matte':               'Matte',
+    'custom.glossy':              'Glossy',
+    'custom.corners':             'Pocket Corners',
+    'custom.environment':         'Environment',
+    'custom.sameAsFrame':         'Mirrors Frames',
   },
 };
 

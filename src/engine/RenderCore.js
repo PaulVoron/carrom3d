@@ -46,15 +46,6 @@ import { useGameStore } from '../store/useGameStore.js';
 
 const isNewThreeJs = parseInt(THREE.REVISION) >= 150;
 
-// ─── Палитры цветов фишек ─────────────────────────────────────────────────────
-
-/** @type {Record<string, {white: number|string, black: number|string}>} */
-const COIN_COLOR_PALETTES = {
-  default: { white: 0xf5f0e8, black: 0x1a1a1a },   // классика: слоновая кость / почти чёрный
-  golden:  { white: 0xffd700, black: 0xc0c0c0 },   // золото / серебро
-  classic: { white: 0xd4b483, black: 0x6b3a2a },   // бежевый / коричневый (натуральный кэррам)
-};
-
 // ─── Проверка производительности ─────────────────────────────────────────────
 
 function isWeakDevice() {
@@ -89,9 +80,6 @@ export class RenderCore {
     this._currentEnvPath = ENVIRONMENT_MAP;
     this._initialLightOffset = new THREE.Vector3();
     this._animFrameId = null;
-
-    /** @type {Function | null} Отписка от Zustand (скины) */
-    this._skinsUnsub = null;
 
     // Предзагрузчик текстур (shared, чтобы не создавать новый при каждой загрузке)
     this._textureLoader = new THREE.TextureLoader();
@@ -564,7 +552,6 @@ export class RenderCore {
 
   dispose() {
     if (this._animFrameId) cancelAnimationFrame(this._animFrameId);
-    if (this._skinsUnsub) { this._skinsUnsub(); this._skinsUnsub = null; }
     if (this.gui) {
       this.gui.destroy();
       this.gui = null;
@@ -577,119 +564,6 @@ export class RenderCore {
     this.controls?.dispose();
   }
 
-  // ─── Динамическая подмена скинов ────────────────────────────────────────────────────────────
-
-  /**
-   * Подписывается на изменения скинов в сторе и динамически обновляет текстуры.
-   *
-   * Загрузка — асинхронная: не блокирует RAF и не вызывает фризов физики.
-   * После загрузки вызывается material.needsUpdate = true — рендерер сам подхватит в следующем кадре.
-   *
-   * @param {object} meshRefs — ссылки на меши, предоставляемые изнаружи (после загрузки моделей).
-   *   boardMesh    {THREE.Mesh | null}   — игровая поверхность стола
-   *   frameMeshes  {THREE.Mesh[]}        — меши деревянных бортов
-   *   strikerMesh  {THREE.Mesh | null}   — топ битка
-   *   whiteCoinMeshes {THREE.Mesh[]}     — белые фишки
-   *   blackCoinMeshes {THREE.Mesh[]}     — чёрные фишки
-   */
-  initSkinsSubscription(meshRefs = {}) {
-    this._meshRefs = meshRefs;
-
-    // Немедленно применяем текущие настройки
-    const initSkins = useGameStore.getState().settings.skins;
-    this._applySkinsPartial(initSkins, {});
-
-    // Подписываемся: при изменении обновляем только изменившиеся ключи
-    let prevSkins = { ...initSkins };
-    this._skinsUnsub = useGameStore.subscribe(
-      (state) => state.settings.skins,
-      (skins) => {
-        this._applySkinsPartial(skins, prevSkins);
-        prevSkins = { ...skins };
-      },
-      {
-        equalityFn: (a, b) =>
-          a.boardTexture   === b.boardTexture   &&
-          a.frameTexture   === b.frameTexture   &&
-          a.strikerTexture === b.strikerTexture &&
-          a.coinColorSet   === b.coinColorSet   &&
-          a.environmentMap === b.environmentMap,
-      }
-    );
-  }
-
-  /**
-   * @private
-   * Применяет изменения скинов. Загрузка текстур — асинхронная.
-   */
-  _applySkinsPartial(skins, prevSkins) {
-    const { boardMesh, frameMeshes = [], strikerMesh, whiteCoinMeshes = [], blackCoinMeshes = [] } = this._meshRefs ?? {};
-
-    // ─ boardTexture ────────────────────────────────────────────────────────────
-    if (skins.boardTexture !== prevSkins.boardTexture && boardMesh) {
-      this._textureLoader.load(skins.boardTexture, (tex) => {
-        if (!boardMesh.material) return;
-        this._configTexture(tex);
-        boardMesh.material.map = tex;
-        boardMesh.material.needsUpdate = true;
-      });
-    }
-
-    // ─ frameTexture ───────────────────────────────────────────────────────────
-    if (skins.frameTexture !== prevSkins.frameTexture && frameMeshes.length) {
-      this._textureLoader.load(skins.frameTexture, (tex) => {
-        this._configTexture(tex);
-        frameMeshes.forEach((m) => {
-          if (!m?.material) return;
-          m.material.map = tex;
-          m.material.needsUpdate = true;
-        });
-      });
-    }
-
-    // ─ strikerTexture ─────────────────────────────────────────────────────────
-    if (skins.strikerTexture !== prevSkins.strikerTexture && strikerMesh) {
-      this._textureLoader.load(skins.strikerTexture, (tex) => {
-        if (!strikerMesh.material) return;
-        this._configTexture(tex);
-        strikerMesh.material.map = tex;
-        strikerMesh.material.needsUpdate = true;
-      });
-    }
-
-    // ─ coinColorSet ──────────────────────────────────────────────────────────
-    if (skins.coinColorSet !== prevSkins.coinColorSet) {
-      const palette = COIN_COLOR_PALETTES[skins.coinColorSet] ?? COIN_COLOR_PALETTES.default;
-      whiteCoinMeshes.forEach((m) => {
-        if (!m?.material) return;
-        m.material.color.set(palette.white);
-        m.material.needsUpdate = true;
-      });
-      blackCoinMeshes.forEach((m) => {
-        if (!m?.material) return;
-        m.material.color.set(palette.black);
-        m.material.needsUpdate = true;
-      });
-    }
-
-    // ─ environmentMap ───────────────────────────────────────────────────────
-    if (skins.environmentMap !== prevSkins.environmentMap) {
-      this._currentEnvPath = skins.environmentMap;
-      this._loadEnvMap(skins.environmentMap, ENVIRONMENT_MAP_INTENSITY);
-    }
-  }
-
-  /**
-   * @private
-   * Настраивает загруженную текстуру: colorSpace + anisotropy.
-   * @param {THREE.Texture} tex
-   */
-  _configTexture(tex) {
-    tex.anisotropy = this._isLowPerf ? 4 : 16;
-    if (isNewThreeJs) tex.colorSpace = THREE.SRGBColorSpace;
-    else tex.encoding = 3001;
-    tex.needsUpdate = true;
-  }
 
   // ─── GUI ────────────────────────────────────────────────────────────────────
 

@@ -13,6 +13,7 @@ export const ScoreBoard = () => {
   const queenCoveredBy = useGameStore((state) => state.queenCoveredBy);
   const timeLeft = useGameStore((state) => state.timeLeft);
 
+  const currentCoinNames = useGameStore((state) => state.currentCoinNames);
   const networkMode = useGameStore((state) => state.networkMode);
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
   const gameMode = useGameStore((state) => state.gameMode);
@@ -29,8 +30,8 @@ export const ScoreBoard = () => {
   const getPlayerLabel = (pId) => {
     const color = playerColors[`player${pId}`];
     let colorSuffix = '';
-    if (color === 'white') colorSuffix = t('score.colorWhite');
-    else if (color === 'black') colorSuffix = t('score.colorBlack');
+    if (color === 'white') colorSuffix = ` (${currentCoinNames?.white})`;
+    else if (color === 'black') colorSuffix = ` (${currentCoinNames?.black})`;
 
     if (gameMode === 'pve' && pId === 2) {
       const difficultyText = botDifficulty === 1 ? t('bot.easy') : botDifficulty === 2 ? t('bot.medium') : t('bot.master');

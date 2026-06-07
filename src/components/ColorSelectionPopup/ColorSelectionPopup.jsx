@@ -10,6 +10,7 @@ export const ColorSelectionPopup = () => {
   const localPlayerRole = useGameStore((state) => state.localPlayerRole);
   const networkMode = useGameStore((state) => state.networkMode);
   const selectPlayerColor = useGameStore((state) => state.selectPlayerColor);
+  const currentCoinNames = useGameStore((state) => state.currentCoinNames);
   const { t } = useTranslation();
 
   if (!showColorSelection) return null;
@@ -49,14 +50,14 @@ export const ColorSelectionPopup = () => {
               onClick={() => handleSelect('white')}
             >
               <div className={styles.colorPreviewWhite} />
-              <span>{t('colorpick.white')}</span>
+              <span>{currentCoinNames?.white ?? t('colorpick.white')}</span>
             </button>
             <button
               className={`${styles.colorBtn} ${styles.blackBtn}`}
               onClick={() => handleSelect('black')}
             >
               <div className={styles.colorPreviewBlack} />
-              <span>{t('colorpick.black')}</span>
+              <span>{currentCoinNames?.black ?? t('colorpick.black')}</span>
             </button>
           </div>
         ) : (

@@ -6,8 +6,8 @@ const textures = {
         },
         materialName: "mat_striker_pattern",
         stiker_0: {
-            uiImage: '../public/textures/striker/striker_0.png',
-            map: '../public/textures/striker/striker_0.png',
+            uiImage: '/textures/striker/striker_0.png',
+            map: '/textures/striker/striker_0.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -23,8 +23,8 @@ const textures = {
             rotation: 0,
         },
         stiker_1: {
-            uiImage: '../public/textures/striker/striker_1.png',
-            map: '../public/textures/striker/striker_1.png',
+            uiImage: '/textures/striker/striker_1.png',
+            map: '/textures/striker/striker_1.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -40,8 +40,8 @@ const textures = {
             rotation: 0,
         },
         stiker_2: {
-            uiImage: '../public/textures/striker/striker_2.png',
-            map: '../public/textures/striker/striker_2.png',
+            uiImage: '/textures/striker/striker_2.png',
+            map: '/textures/striker/striker_2.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -57,8 +57,8 @@ const textures = {
             rotation: 0,
         },
         stiker_3: {
-            uiImage: '../public/textures/striker/striker_3.png',
-            map: '../public/textures/striker/striker_3.png',
+            uiImage: '/textures/striker/striker_3.png',
+            map: '/textures/striker/striker_3.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -74,8 +74,8 @@ const textures = {
             rotation: 0,
         },
         stiker_4: {
-            uiImage: '../public/textures/striker/striker_4.png',
-            map: '../public/textures/striker/striker_4.png',
+            uiImage: '/textures/striker/striker_4.png',
+            map: '/textures/striker/striker_4.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -91,8 +91,8 @@ const textures = {
             rotation: 0,
         },
         stiker_5: {
-            uiImage: '../public/textures/striker/striker_5.png',
-            map: '../public/textures/striker/striker_5.png',
+            uiImage: '/textures/striker/striker_5.png',
+            map: '/textures/striker/striker_5.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -108,8 +108,8 @@ const textures = {
             rotation: 0,
         },
         stiker_6: {
-            uiImage: '../public/textures/striker/striker_6.png',
-            map: '../public/textures/striker/striker_6.png',
+            uiImage: '/textures/striker/striker_6.png',
+            map: '/textures/striker/striker_6.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -125,8 +125,8 @@ const textures = {
             rotation: 0,
         },
         stiker_7: {
-            uiImage: '../public/textures/striker/striker_7.png',
-            map: '../public/textures/striker/striker_7.png',
+            uiImage: '/textures/striker/striker_7.png',
+            map: '/textures/striker/striker_7.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -142,8 +142,8 @@ const textures = {
             rotation: 0,
         },
         stiker_8: {
-            uiImage: '../public/textures/striker/striker_8.png',
-            map: '../public/textures/striker/striker_8.png',
+            uiImage: '/textures/striker/striker_8.png',
+            map: '/textures/striker/striker_8.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -159,8 +159,8 @@ const textures = {
             rotation: 0,
         },
         stiker_9: {
-            uiImage: '../public/textures/striker/striker_9.png',
-            map: '../public/textures/striker/striker_9.png',
+            uiImage: '/textures/striker/striker_9.png',
+            map: '/textures/striker/striker_9.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -176,8 +176,8 @@ const textures = {
             rotation: 0,
         },
         stiker_10: {
-            uiImage: '../public/textures/striker/striker_10.png',
-            map: '../public/textures/striker/striker_10.png',
+            uiImage: '/textures/striker/striker_10.png',
+            map: '/textures/striker/striker_10.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -200,7 +200,7 @@ const textures = {
         },
         materialName: "mat_carrom_piece",
         blackWhite: {
-            uiImage: '../public/textures/coins/blackWhite.png',
+            uiImage: '/textures/coins/blackWhite.png',
             uiName: {
                 en: 'Black and White',
                 uk: 'Чорно-білі',
@@ -226,7 +226,7 @@ const textures = {
             rotation: 0,
         },
         beigeBrown: {
-            uiImage: '../public/textures/coins/beigeBrown.png',
+            uiImage: '/textures/coins/beigeBrown.png',
             uiName: {
                 en: 'Beige and Brown',
                 uk: 'Бежеві та коричневі',
@@ -252,7 +252,7 @@ const textures = {
             rotation: 0,
         },
         goldSilver: {
-            uiImage: '../public/textures/coins/goldSilver.png',
+            uiImage: '/textures/coins/goldSilver.png',
             uiName: {
                 en: 'Gold and Silver',
                 uk: 'Золоті та срібні',
@@ -268,7 +268,7 @@ const textures = {
             colorWhite: 0xffd700,
             colorBlack: 0xc0c0c0,
             colorRed: 0xff0000,
-            metalness: 0.1,
+            metalness: 1,
             roughness: 0.1,
             repeatX: 1,
             repeatY: 1,
@@ -285,13 +285,13 @@ const textures = {
         },
         materialName: "mat_frame_corners",
         sameAsFrame: {
-            uiImage: '../public/textures/pocketCorners/sameAsFrame.png',
+            uiImage: '/textures/pocketCorners/sameAsFrame.png',
             uiName: { en: 'Same as frame', uk: 'Як на бортах', },
             map: null,
             normalMap: null,
             roughnessMap: null,
             metalnessMap: null,
-            metalness: null,
+            metalness: 0,
             roughness: null,
             repeatX: 1,
             repeatY: 1,
@@ -301,7 +301,7 @@ const textures = {
             rotation: 0,
         },
         gold: {
-            uiImage: '../public/textures/pocketCorners/gold.png',
+            uiImage: '/textures/pocketCorners/gold.png',
             uiName: { en: 'Golden', uk: 'Золоті', },
             map: null,
             normalMap: null,
@@ -318,7 +318,7 @@ const textures = {
             rotation: 0,
         },
         silver: {
-            uiImage: '../public/textures/pocketCorners/silver.png',
+            uiImage: '/textures/pocketCorners/silver.png',
             uiName: {en: 'Silver', uk: 'Срібні',},
             map: null,
             normalMap: null,
@@ -335,7 +335,7 @@ const textures = {
             rotation: 0,
         },
         darkWood: {
-            uiImage: '../public/textures/pocketCorners/darkWood.png',
+            uiImage: '/textures/pocketCorners/darkWood.png',
             uiName: {en: 'Dark Wood', uk: 'Темне дерево',},
             map: null,
             normalMap: null,
@@ -352,7 +352,7 @@ const textures = {
             rotation: 0,
         },
         lightWood: {
-            uiImage: '../public/textures/pocketCorners/lightWood.png',
+            uiImage: '/textures/pocketCorners/lightWood.png',
             uiName: {en: 'Light Wood', uk: 'Світле дерево',},
             map: null,
             normalMap: null,
@@ -373,8 +373,8 @@ const textures = {
         uiName: {en: 'Surface Material', uk: 'Матеріал поверхні',},
         materialName: "mat_board_top",
         plywood_0: {
-            uiImage: '../public/textures/board/surface/plywood.jpg',
-            map: '../public/textures/board/surface/plywood.jpg',
+            uiImage: '/textures/board/surface/plywood.jpg',
+            map: '/textures/board/surface/plywood.jpg',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -382,7 +382,7 @@ const textures = {
             color: null,
             metalness: 0.00,
             roughness: 0.45,
-            repeatX: 1,
+            repeatX: 2,
             repeatY: 1,
             offset: { x: 0, y: 0 },
             flipX: false,
@@ -390,8 +390,8 @@ const textures = {
             rotation: 0,
         },
         plywood_1: {
-            uiImage: '../public/textures/board/surface/plywood2.jpg',
-            map: '../public/textures/board/surface/plywood2.jpg',
+            uiImage: '/textures/board/surface/plywood2.jpg',
+            map: '/textures/board/surface/plywood2.jpg',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -407,8 +407,8 @@ const textures = {
             rotation: 0,
         },
         marble_0: {
-            uiImage: '../public/textures/board/surface/marble.jpg',
-            map: '../public/textures/board/surface/marble.jpg',
+            uiImage: '/textures/board/surface/marble.jpg',
+            map: '/textures/board/surface/marble.jpg',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -424,8 +424,8 @@ const textures = {
             rotation: 0,
         },
         marble_1: {
-            uiImage: '../public/textures/board/surface/marble2.jpg',
-            map: '../public/textures/board/surface/marble2.jpg',
+            uiImage: '/textures/board/surface/marble2.jpg',
+            map: '/textures/board/surface/marble2.jpg',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -441,8 +441,8 @@ const textures = {
             rotation: 0,
         },
         marble_2: {
-            uiImage: '../public/textures/board/surface/marble3.jpg',
-            map: '../public/textures/board/surface/marble3.jpg',
+            uiImage: '/textures/board/surface/marble3.jpg',
+            map: '/textures/board/surface/marble3.jpg',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -462,8 +462,8 @@ const textures = {
         uiName: { en: 'Surface Pattern', uk: 'Малюнок поверхні', },
         materialName: "mat_board_pattern",
         armenia: {
-            uiImage: '../public/textures/board/pattern/armenia.png',
-            map: '../public/textures/board/pattern/armenia.png',
+            uiImage: '/textures/board/pattern/armenia.png',
+            map: '/textures/board/pattern/armenia.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -479,8 +479,8 @@ const textures = {
             rotation: 0,
         },
         bali: {
-            uiImage: '../public/textures/board/pattern/bali.png',
-            map: '../public/textures/board/pattern/bali.png',
+            uiImage: '/textures/board/pattern/bali.png',
+            map: '/textures/board/pattern/bali.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -496,8 +496,8 @@ const textures = {
             rotation: 0,
         },
         classic: {
-            uiImage: '../public/textures/board/pattern/classic.png',
-            map: '../public/textures/board/pattern/classic.png',
+            uiImage: '/textures/board/pattern/classic.png',
+            map: '/textures/board/pattern/classic.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -513,8 +513,8 @@ const textures = {
             rotation: 0,
         },
         crete: {
-            uiImage: '../public/textures/board/pattern/crete.png',
-            map: '../public/textures/board/pattern/crete.png',
+            uiImage: '/textures/board/pattern/crete.png',
+            map: '/textures/board/pattern/crete.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -530,8 +530,8 @@ const textures = {
             rotation: 0,
         },
         india: {
-            uiImage: '../public/textures/board/pattern/india.png',
-            map: '../public/textures/board/pattern/india.png',
+            uiImage: '/textures/board/pattern/india.png',
+            map: '/textures/board/pattern/india.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -547,8 +547,8 @@ const textures = {
             rotation: 0,
         },
         pakistan: {
-            uiImage: '../public/textures/board/pattern/pakistan.png',
-            map: '../public/textures/board/pattern/pakistan.png',
+            uiImage: '/textures/board/pattern/pakistan.png',
+            map: '/textures/board/pattern/pakistan.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -564,8 +564,8 @@ const textures = {
             rotation: 0,
         },
         persia: {
-            uiImage: '../public/textures/board/pattern/persia.png',
-            map: '../public/textures/board/pattern/persia.png',
+            uiImage: '/textures/board/pattern/persia.png',
+            map: '/textures/board/pattern/persia.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -581,8 +581,8 @@ const textures = {
             rotation: 0,
         },
         simple: {
-            uiImage: '../public/textures/board/pattern/simple.png',
-            map: '../public/textures/board/pattern/simple.png',
+            uiImage: '/textures/board/pattern/simple.png',
+            map: '/textures/board/pattern/simple.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -598,8 +598,8 @@ const textures = {
             rotation: 0,
         },
         turkey: {
-            uiImage: '../public/textures/board/pattern/turkey.png',
-            map: '../public/textures/board/pattern/turkey.png',
+            uiImage: '/textures/board/pattern/turkey.png',
+            map: '/textures/board/pattern/turkey.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -615,8 +615,8 @@ const textures = {
             rotation: 0,
         },
         ukraine: {
-            uiImage: '../public/textures/board/pattern/ukraine.png',
-            map: '../public/textures/board/pattern/ukraine.png',
+            uiImage: '/textures/board/pattern/ukraine.png',
+            map: '/textures/board/pattern/ukraine.png',
             uiName: { en: null, uk: null, },
             normalMap: null,
             roughnessMap: null,
@@ -636,13 +636,13 @@ const textures = {
         uiName: { en: 'Frame Texture', uk: 'Текстура бортів', },
         materialName: "mat_frame_wood",
         dark_Stained: {
-            uiImage: '../public/textures/board/frame/boardSides/Dark_Stained.jpg',
+            uiImage: '/textures/frame/boardSides/Dark_Stained.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Dark_Stained.jpg',
+            map: '/textures/frame/boardSides/Dark_Stained.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -650,7 +650,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -665,13 +665,13 @@ const textures = {
             rotation: 0,
         },
         leem: {
-            uiImage: '../public/textures/board/frame/boardSides/Leem.jpg',
+            uiImage: '/textures/frame/boardSides/Leem.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Leem.jpg',
+            map: '/textures/frame/boardSides/Leem.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -679,7 +679,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -694,13 +694,13 @@ const textures = {
             rotation: 0,
         },
         naturel: {
-            uiImage: '../public/textures/board/frame/boardSides/Naturel.jpg',
+            uiImage: '/textures/frame/boardSides/Naturel.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Naturel.jpg',
+            map: '/textures/frame/boardSides/Naturel.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -708,7 +708,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -723,13 +723,13 @@ const textures = {
             rotation: 0,
         },
         noten: {
-            uiImage: '../public/textures/board/frame/boardSides/Noten.jpg',
+            uiImage: '/textures/frame/boardSides/Noten.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Noten.jpg',
+            map: '/textures/frame/boardSides/Noten.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -737,7 +737,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -752,13 +752,13 @@ const textures = {
             rotation: 0,
         },
         noten_elite: {
-            uiImage: '../public/textures/board/frame/boardSides/Noten_mat.jpg',
+            uiImage: '/textures/frame/boardSides/Noten_mat.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Noten_mat.jpg',
+            map: '/textures/frame/boardSides/Noten_mat.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/Noten_mat_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/Noten_mat_roughness.jpg',
+                    normalMap: '/textures/frame/boardSides/Noten_mat_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/Noten_mat_roughness.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -766,7 +766,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/Noten_gloss_roughness.jpg',
+                    roughnessMap: '/textures/frame/boardSides/Noten_gloss_roughness.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -781,13 +781,13 @@ const textures = {
             rotation: 0,
         },
         rock: {
-            uiImage: '../public/textures/board/frame/boardSides/Rock.jpg',
+            uiImage: '/textures/frame/boardSides/Rock.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Rock.jpg',
+            map: '/textures/frame/boardSides/Rock.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -795,7 +795,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -810,13 +810,13 @@ const textures = {
             rotation: 0,
         },
         royal_grey: {
-            uiImage: '../public/textures/board/frame/boardSides/Royal_Grey.jpg',
+            uiImage: '/textures/frame/boardSides/Royal_Grey.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Royal_Grey.jpg',
+            map: '/textures/frame/boardSides/Royal_Grey.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -824,7 +824,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -839,13 +839,13 @@ const textures = {
             rotation: 0,
         },
         tabacco: {
-            uiImage: '../public/textures/board/frame/boardSides/Tabacco.jpg',
+            uiImage: '/textures/frame/boardSides/Tabacco.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Tabacco.jpg',
+            map: '/textures/frame/boardSides/Tabacco.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -853,7 +853,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -868,13 +868,13 @@ const textures = {
             rotation: 0,
         },
         tabacco_white: {
-            uiImage: '../public/textures/board/frame/boardSides/Tabacco_White.jpg',
+            uiImage: '/textures/frame/boardSides/Tabacco_White.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Tabacco_White.jpg',
+            map: '/textures/frame/boardSides/Tabacco_White.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -882,7 +882,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -897,13 +897,13 @@ const textures = {
             rotation: 0,
         },
         tabacco_black: {
-            uiImage: '../public/textures/board/frame/boardSides/Tabacco_Zwart.jpg',
+            uiImage: '/textures/frame/boardSides/Tabacco_Zwart.jpg',
             uiName: { en: null, uk: null, },
-            map: '../public/textures/board/frame/boardSides/Tabacco_Zwart.jpg',
+            map: '/textures/frame/boardSides/Tabacco_Zwart.jpg',
             finishType: {
                 matte: {
-                    normalMap: '../public/textures/board/frame/boardSides/oak_normal.png',
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough.jpg',
+                    normalMap: '/textures/frame/boardSides/oak_normal.png',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -911,7 +911,7 @@ const textures = {
                 },
                 glossy: {
                     normalMap: null,
-                    roughnessMap: '../public/textures/board/frame/boardSides/oak_rough_gloss.jpg',
+                    roughnessMap: '/textures/frame/boardSides/oak_rough_gloss.jpg',
                     metalnessMap: null,
                     color: null,
                     metalness: null,
@@ -926,4 +926,19 @@ const textures = {
             rotation: 0,
         },
     },
+    environments: {
+        uiName: { en: 'Environment', uk: 'Оточення', },
+        neutral: {
+            uiImage: null,
+            file: '/environment/neutral.hdr',
+            uiName: { en: 'Neutral Studio', uk: 'Нейтральна студія', },
+        },
+        studio: {
+            uiImage: null,
+            file: '/environment/brown_photostudio_07_1k.hdr',
+            uiName: { en: 'Brown Studio', uk: 'Коричнева студія', },
+        },
+    },
 };
+
+export default textures;

@@ -13,37 +13,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { useTranslation } from '../../i18n/translations';
+import { CustomizationTab } from './CustomizationTab';
 import styles from './SettingsModal.module.scss';
-
-// ─── Конфиг опций скинов ──────────────────────────────────────────────────────
-
-const SKIN_OPTIONS = {
-  boardTexture: [
-    { value: '/textures/board_default.jpg', labelKey: 'skins.board.default' },
-    { value: '/textures/board_marble.jpg',  labelKey: 'skins.board.marble'  },
-    { value: '/textures/board_dark.jpg',    labelKey: 'skins.board.dark'    },
-  ],
-  frameTexture: [
-    { value: '/textures/frame_default.jpg',  labelKey: 'skins.frame.default'  },
-    { value: '/textures/frame_mahogany.jpg', labelKey: 'skins.frame.mahogany' },
-    { value: '/textures/frame_walnut.jpg',   labelKey: 'skins.frame.walnut'   },
-  ],
-  strikerTexture: [
-    { value: '/textures/striker_default.jpg', labelKey: 'skins.striker.default' },
-    { value: '/textures/striker_gold.jpg',    labelKey: 'skins.striker.gold'    },
-    { value: '/textures/striker_carbon.jpg',  labelKey: 'skins.striker.carbon'  },
-  ],
-  coinColorSet: [
-    { value: 'default', labelKey: 'skins.coins.default' },
-    { value: 'golden',  labelKey: 'skins.coins.golden'  },
-    { value: 'classic', labelKey: 'skins.coins.classic' },
-  ],
-  environmentMap: [
-    { value: '/hdr/default.hdr', labelKey: 'skins.env.default'  },
-    { value: '/hdr/outdoor.hdr', labelKey: 'skins.env.outdoor'  },
-    { value: '/hdr/night.hdr',   labelKey: 'skins.env.night'    },
-  ],
-};
 
 // ─── VolumeSlider ──────────────────────────────────────────────────────────────
 
@@ -62,29 +33,6 @@ function VolumeSlider({ label, value, onChange }) {
         />
       </div>
       <span className={styles.sliderValue}>{Math.round(value * 100)}</span>
-    </div>
-  );
-}
-
-// ─── SkinSelect ───────────────────────────────────────────────────────────────
-
-function SkinSelect({ label, optionKey, value, onChange, t }) {
-  const options = SKIN_OPTIONS[optionKey] ?? [];
-  return (
-    <div className={styles.skinRow}>
-      <span className={styles.skinLabel}>{label}</span>
-      <div className={styles.skinButtons}>
-        {options.map((opt) => (
-          <button
-            key={opt.value}
-            className={`${styles.skinBtn} ${value === opt.value ? styles.skinBtnActive : ''}`}
-            onClick={() => onChange(opt.value)}
-            title={t(opt.labelKey)}
-          >
-            {t(opt.labelKey)}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -113,22 +61,17 @@ export const SettingsModal = ({ isOpen, onClose }) => {
     [updateSetting]
   );
 
-  const handleSkin = useCallback(
-    (key, value) => updateSetting('skins', key, value),
-    [updateSetting]
-  );
-
   if (!isOpen) return null;
 
   return (
     <div
-      className={styles.backdrop}
+      className={`${styles.backdrop} ${activeTab === 'customize' ? styles.backdropTransparent : ''}`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
       aria-modal="true"
       aria-label={t('settings.title')}
     >
-      <div className={styles.modal}>
+      <div className={`${styles.modal} ${activeTab === 'customize' ? styles.modalRight : ''}`}>
 
         {/* ── Заголовок ── */}
         <div className={styles.header}>
@@ -214,43 +157,7 @@ export const SettingsModal = ({ isOpen, onClose }) => {
 
         {/* ── Содержимое вкладки: Кастомізація ── */}
         {activeTab === 'customize' && (
-          <div className={styles.tabContent}>
-            <SkinSelect
-              label={t('settings.boardTexture')}
-              optionKey="boardTexture"
-              value={settings.skins.boardTexture}
-              onChange={(v) => handleSkin('boardTexture', v)}
-              t={t}
-            />
-            <SkinSelect
-              label={t('settings.frameTexture')}
-              optionKey="frameTexture"
-              value={settings.skins.frameTexture}
-              onChange={(v) => handleSkin('frameTexture', v)}
-              t={t}
-            />
-            <SkinSelect
-              label={t('settings.strikerTexture')}
-              optionKey="strikerTexture"
-              value={settings.skins.strikerTexture}
-              onChange={(v) => handleSkin('strikerTexture', v)}
-              t={t}
-            />
-            <SkinSelect
-              label={t('settings.coinColorSet')}
-              optionKey="coinColorSet"
-              value={settings.skins.coinColorSet}
-              onChange={(v) => handleSkin('coinColorSet', v)}
-              t={t}
-            />
-            <SkinSelect
-              label={t('settings.environmentMap')}
-              optionKey="environmentMap"
-              value={settings.skins.environmentMap}
-              onChange={(v) => handleSkin('environmentMap', v)}
-              t={t}
-            />
-          </div>
+          <CustomizationTab />
         )}
 
         {/* ── Содержимое вкладки: Геймплей ── */}

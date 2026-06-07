@@ -8,7 +8,9 @@ export const ColorAlert = () => {
   const clearAlert = useGameStore(s => s.clearColorAssignmentAlert);
   const mode = useGameStore(s => s.networkMode);
   const playerColors = useGameStore(s => s.playerColors);
-  const localPlayerRole = useGameStore(s => s.localPlayerRole);
+  const localPlayerRole = useGameStore(state => state.localPlayerRole);
+  const networkMode = useGameStore(state => state.networkMode);
+  const currentCoinNames = useGameStore(state => state.currentCoinNames);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -31,9 +33,16 @@ export const ColorAlert = () => {
     textKey = myColor === 'white' ? 'coloralert.youWhite' : 'coloralert.youBlack';
   }
 
+  let text = t(textKey);
+  
+  if (currentCoinNames) {
+    if (myColor === 'white') text = text.replace(t('score.colorWhite'), currentCoinNames.white).replace(t('colorpick.white'), currentCoinNames.white);
+    if (myColor === 'black') text = text.replace(t('score.colorBlack'), currentCoinNames.black).replace(t('colorpick.black'), currentCoinNames.black);
+  }
+
   return (
     <div className={styles.overlay}>
-      <div className={styles.popup}>{t(textKey)}</div>
+      <div className={styles.popup}>{text}</div>
     </div>
   );
 };

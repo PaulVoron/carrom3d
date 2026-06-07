@@ -11,6 +11,8 @@ import { PhysicsEngine, PHYSICS } from '../engine/PhysicsEngine.js';
 import { RenderCore } from '../engine/RenderCore.js';
 import { InputController, PLAYER_1_LINE_Z } from '../engine/InputController.js';
 import { GameRulesManager } from '../engine/GameRulesManager.js';
+import { CustomizationManager } from '../engine/CustomizationManager.js';
+import textures from '../engine/textures.js';
 import { useGameStore } from '../store/useGameStore.js';
 import { DEBUG_MODE, MODELS } from '../engine/3d-scene-settings.js';
 import { networkManager } from '../engine/NetworkManager.js';
@@ -26,6 +28,9 @@ export class GameOrchestrator {
     this.rules   = new GameRulesManager(this.physics, this.render, this.input);
     this.botManager = new AIBotManager(this);
     this._isStarted = false;
+
+    /** @type {CustomizationManager | null} */
+    this.customization = null;
 
     /** THREE.Group для фишек пирамиды (кроме битка) — для визуального вращения */
     this.pyramidGroup = null;
@@ -72,6 +77,32 @@ export class GameOrchestrator {
 
     // Включаем тени для монет/битка (программно созданные меши)
     this.render.setupCoinShadows(this.physics.physicsBodies);
+
+    // 5.5. Инициализируем менеджер кастомизации
+    this.customization = new CustomizationManager(
+      this.render.scene,
+      this.render._textureLoader,
+      this.render.renderer
+    );
+    this.customization.collectMaterials(model);
+
+    // Передаём ссылки на динамические меши (фишки и биток)
+    const whiteCoinMeshes = [];
+    const blackCoinMeshes = [];
+    const queenCoinMeshes = [];
+    for (const entry of this.physics.physicsBodies) {
+      const type = entry.mesh.userData.type;
+      if (type === 'white')  whiteCoinMeshes.push(entry.mesh);
+      if (type === 'black')  blackCoinMeshes.push(entry.mesh);
+      if (type === 'queen')  queenCoinMeshes.push(entry.mesh);
+    }
+    this.customization.setMeshRefs({
+      whiteCoinMeshes,
+      blackCoinMeshes,
+      queenCoinMeshes,
+      strikerMesh: this.rules.strikerEntry?.mesh ?? null,
+    });
+    this.customization.initSubscription();
 
     // Дожидаемся завершения предзагрузки аудио
     await audioPreloadPromise;
@@ -635,11 +666,25 @@ export class GameOrchestrator {
 
   // ─── Утилиты ────────────────────────────────────────────────────────────────
 
-  _setMeshColor(obj, color) {
+  _setMeshColor(obj, defaultColor) {
+    const state = useGameStore.getState();
+    const skinId = state.settings?.customization?.coinSkinId;
+    const skinCfg = skinId ? textures.coins[skinId] : null;
+
+    let finalColor = defaultColor;
+    if (skinCfg) {
+      if (obj.userData.type === 'white') finalColor = skinCfg.colorWhite;
+      else if (obj.userData.type === 'black') finalColor = skinCfg.colorBlack;
+      else if (obj.userData.type === 'queen') finalColor = skinCfg.colorRed;
+    }
+
     obj.traverse(child => {
       if (child.isMesh) {
-        child.material = child.material.clone();
-        child.material.color.set(color);
+        if (!child.material.isCloned) {
+          child.material = child.material.clone();
+          child.material.isCloned = true;
+        }
+        child.material.color.set(finalColor);
       }
     });
   }
@@ -825,6 +870,10 @@ export class GameOrchestrator {
     this.physics.dispose();
     audioManager.dispose();
     this.botManager.dispose();
+    if (this.customization) {
+      this.customization.dispose();
+      this.customization = null;
+    }
     if (this._undoUnsub) {
       this._undoUnsub();
       this._undoUnsub = null;
