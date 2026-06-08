@@ -161,7 +161,6 @@ export const translations = {
     'custom.glossy':              'Глянцювий',
     'custom.corners':             'Кути лунок',
     'custom.environment':         'Оточення',
-    'custom.sameAsFrame':         'Відображає борти',
   },
 
   en: {
@@ -313,7 +312,6 @@ export const translations = {
     'custom.glossy':              'Glossy',
     'custom.corners':             'Pocket Corners',
     'custom.environment':         'Environment',
-    'custom.sameAsFrame':         'Mirrors Frames',
   },
 };
 

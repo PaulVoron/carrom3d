@@ -237,11 +237,6 @@ export function CustomizationTab() {
           <h3 className={styles.sectionTitle}>
             {textures.pocketCorners.uiName?.[language] ?? 'Pocket Corners'}
           </h3>
-          {isSameAsFrame && (
-            <div className={styles.sameAsFrameBadge}>
-              🔗 {t('custom.sameAsFrame')}
-            </div>
-          )}
         </div>
         <div className={styles.skinGrid}>
           {getCategoryOptions(textures.pocketCorners).map(([id, cfg]) => (
