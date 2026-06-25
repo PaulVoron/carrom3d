@@ -55,6 +55,12 @@ const CUT_ANGLE_WEIGHT = 2.5;
 /** Бонус за Королеву (вычитается из score → приоритет) */
 const QUEEN_BONUS = 1.0;
 
+/** Штраф за удары назад (в сторону своей линии) */
+const BACKWARD_SHOT_PENALTY = 2.0;
+
+/** Штраф за удары от борта (bank shots) */
+const BANK_SHOT_PENALTY = 1.5;
+
 export class AIBotManager {
   constructor(orchestrator) {
     this.orchestrator = orchestrator;
@@ -131,120 +137,26 @@ export class AIBotManager {
 
     for (const target of validTargets) {
       const coinPos = target.entry.body.translation();
-      const coinType = target.entry.mesh.userData.type;
 
       for (const pocket of pockets) {
-        // ── Ghost Ball: вычисляем точку контакта P_contact ────────────────
-        const toPocketX = pocket.x - coinPos.x;
-        const toPocketZ = pocket.z - coinPos.z;
-        const distToPocket = Math.sqrt(toPocketX * toPocketX + toPocketZ * toPocketZ);
-        if (distToPocket < 0.001) continue;
+        // ── Обычный прямой удар (Ghost Ball) ──────────────────────────────
+        const shotInfo = this._evaluateDirectShot(
+          target, coinPos, pocket, contactDist, difficulty, diffMaxCutAngle, bodies
+        );
 
-        // Нормализованное направление фишка → луза
-        const dirPocketX = toPocketX / distToPocket;
-        const dirPocketZ = toPocketZ / distToPocket;
-
-        // P_contact = Coin_Pos − dir_pocket × (R_striker + R_coin)
-        const contactX = coinPos.x - dirPocketX * contactDist;
-        const contactZ = coinPos.z - dirPocketZ * contactDist;
-
-        // ── Луч 1: фишка → луза (свободен ли путь?) ──────────────────────
-        if (!this._isSegmentClear(coinPos.x, coinPos.z, pocket.x, pocket.z, target.entry.body)) {
-          continue;
+        if (shotInfo && shotInfo.score < bestScore) {
+          bestScore = shotInfo.score;
+          bestShot = shotInfo.shot;
         }
 
-        // ── Вычисляем идеальный X на линии бота ──────────────────────────
-        // Прямая P_contact → strikerLine: находим X при Z = PLAYER_2_LINE_Z
-        const dz = PLAYER_2_LINE_Z - contactZ;
-        if (Math.abs(dz) < 0.001) continue; // P_contact слишком близко к линии
+        // ── Удар через борт (Bank Shot) ───────────────────────────────────
+        const bankShotInfo = this._evaluateBankShot(
+          target, coinPos, pocket, contactDist, difficulty, diffMaxCutAngle, bodies
+        );
 
-        // Направление от P_contact к битку должно идти «вперёд» (к линии бота)
-        // Для player 2 линия при Z = -0.25, фишки обычно при Z > -0.25
-        // Значит dz < 0 (идём назад) — допустимо, бот стреляет вперёд (+Z)
-        // Нужно чтобы от strikerPos до P_contact было Z > 0 (вперёд для player2)
-        if (contactZ <= PLAYER_2_LINE_Z) continue; // Цель позади линии бота
-
-        // Идеальный X — проекция линии (contactX, contactZ) → по направлению к линии
-        // Простая линейная интерполяция: мы бьём прямо из (idealX, PLAYER_2_LINE_Z) в (contactX, contactZ)
-        // Идеальная прямая — прямо к P_contact, поэтому idealX = contactX
-        const idealX = contactX;
-
-        // ── Сканируем окрестность idealX на валидные позиции ──────────────
-        const scanMin = Math.max(PLAYER_LINE_MIN_X, idealX - X_SCAN_RADIUS);
-        const scanMax = Math.min(PLAYER_LINE_MAX_X, idealX + X_SCAN_RADIUS);
-
-        for (let x = scanMin; x <= scanMax; x += X_SCAN_STEP) {
-          // ── Проверка валидности расстановки ─────────────────────────────
-          if (!this._isPlacementValid(x, bodies)) continue;
-
-          // ── Направление удара: striker → P_contact ─────────────────────
-          const toContactX = contactX - x;
-          const toContactZ = contactZ - PLAYER_2_LINE_Z;
-          const distToContact = Math.sqrt(toContactX * toContactX + toContactZ * toContactZ);
-          if (distToContact < 0.001) continue;
-
-          const dirHitX = toContactX / distToContact;
-          const dirHitZ = toContactZ / distToContact;
-
-          // Бот должен стрелять «вперёд» (положительный Z для player 2)
-          if (dirHitZ < 0.05) continue;
-
-          // ── Угол резки (cut angle) ─────────────────────────────────────
-          // Угол между направлением удара и направлением фишка→луза
-          const dot = dirHitX * dirPocketX + dirHitZ * dirPocketZ;
-          const cutAngle = Math.acos(Math.min(1.0, Math.max(-1.0, dot)));
-
-          if (cutAngle > diffMaxCutAngle) continue;
-
-          // ── Луч 2: striker → P_contact (свободна ли линия удара?) ──────
-          const strikerBody = this.orchestrator.rules.strikerEntry.body;
-          if (!this._isSegmentClear(x, PLAYER_2_LINE_Z, contactX, contactZ, strikerBody, target.entry.body)) {
-            continue;
-          }
-
-          // ── Скоринг ────────────────────────────────────────────────────
-          const totalDist = distToContact + distToPocket;
-          let score = totalDist + cutAngle * CUT_ANGLE_WEIGHT;
-
-          // Бонус за Королеву
-          if (target.isQueen) {
-            score -= QUEEN_BONUS;
-          }
-
-          if (score < bestScore) {
-            bestScore = score;
-
-            // ── Динамическая сила удара ──────────────────────────────────
-            let force;
-            if (this.orchestrator.rules._isFirstStrike) {
-              force = PHYSICS.maxPullDistance; // Полная максимальная сила на разбой пирамиды
-            } else {
-              // Настройка силы для ВСЕХ последующих ударов:
-              // Формула: totalDist * МНОЖИТЕЛЬ + БАЗА.
-              // Сейчас: multiplier = 0.04 (было 0.06), base = 0.015 (было 0.03).
-              // Измените эти два значения ниже, чтобы отрегулировать силу ударов бота!
-              const forceMultiplier = 0.04; 
-              const forceBase = 0.015;
-
-              force = Math.min(
-                Math.max(totalDist * forceMultiplier + forceBase, 0.03),
-                PHYSICS.maxPullDistance
-              );
-            }
-
-            let finalForce = force;
-            
-            // Вносим случайность в силу удара для низких уровней сложности
-            if (difficulty === 1) finalForce *= (1.0 + (Math.random() - 0.5) * 0.2); // +/- 10%
-            else if (difficulty === 2) finalForce *= (1.0 + (Math.random() - 0.5) * 0.1); // +/- 5%
-
-            finalForce = THREE.MathUtils.clamp(finalForce, 0.01, PHYSICS.maxPullDistance);
-
-            bestShot = {
-              strikerX: x,
-              impulse: new THREE.Vector3(dirHitX, 0, dirHitZ).multiplyScalar(finalForce),
-            };
-          }
+        if (bankShotInfo && bankShotInfo.score < bestScore) {
+          bestScore = bankShotInfo.score;
+          bestShot = bankShotInfo.shot;
         }
       }
     }
@@ -268,6 +180,198 @@ export class AIBotManager {
     return bestShot;
   }
 
+  // ─── Оценка прямого удара ────────────────────────────────────────────────────
+
+  _evaluateDirectShot(target, coinPos, pocket, contactDist, difficulty, diffMaxCutAngle, bodies) {
+    const toPocketX = pocket.x - coinPos.x;
+    const toPocketZ = pocket.z - coinPos.z;
+    const distToPocket = Math.sqrt(toPocketX * toPocketX + toPocketZ * toPocketZ);
+    if (distToPocket < 0.001) return null;
+
+    const dirPocketX = toPocketX / distToPocket;
+    const dirPocketZ = toPocketZ / distToPocket;
+
+    const contactX = coinPos.x - dirPocketX * contactDist;
+    const contactZ = coinPos.z - dirPocketZ * contactDist;
+
+    if (!this._isSegmentClear(coinPos.x, coinPos.z, pocket.x, pocket.z, target.entry.body)) {
+      return null;
+    }
+
+    const dz = PLAYER_2_LINE_Z - contactZ;
+
+    let idealX = contactX;
+    if (Math.abs(dirPocketZ) > 0.001) {
+      idealX = contactX + dz * (dirPocketX / dirPocketZ);
+    }
+    idealX = THREE.MathUtils.clamp(idealX, PLAYER_LINE_MIN_X, PLAYER_LINE_MAX_X);
+
+    return this._scanAndScore(
+      idealX, contactX, contactZ, distToPocket, dirPocketX, dirPocketZ, 
+      target, difficulty, diffMaxCutAngle, bodies, false
+    );
+  }
+
+  // ─── Оценка удара через борт (Bank Shot) ─────────────────────────────────────
+
+  _evaluateBankShot(target, coinPos, pocket, contactDist, difficulty, diffMaxCutAngle, bodies) {
+    const minZ = this.orchestrator.physics.boardBounds ? this.orchestrator.physics.boardBounds.minZ : -0.33;
+    const bounceZ = minZ + PHYSICS.strikerDia / 2;
+
+    const toPocketX = pocket.x - coinPos.x;
+    const toPocketZ = pocket.z - coinPos.z;
+    const distToPocket = Math.sqrt(toPocketX * toPocketX + toPocketZ * toPocketZ);
+    if (distToPocket < 0.001) return null;
+
+    const dirPocketX = toPocketX / distToPocket;
+    const dirPocketZ = toPocketZ / distToPocket;
+
+    const contactX = coinPos.x - dirPocketX * contactDist;
+    const contactZ = coinPos.z - dirPocketZ * contactDist;
+
+    if (!this._isSegmentClear(coinPos.x, coinPos.z, pocket.x, pocket.z, target.entry.body)) {
+      return null;
+    }
+
+    if (contactZ > PLAYER_2_LINE_Z + 0.05) return null;
+
+    const dZ1 = PLAYER_2_LINE_Z - bounceZ;
+    const dZ2 = contactZ - bounceZ;
+    if (dZ1 < 0.001 || dZ2 < 0.001) return null;
+
+    const ratio = dZ1 / (dZ1 + dZ2);
+    let idealX = contactX; 
+
+    return this._scanAndScore(
+      idealX, contactX, contactZ, distToPocket, dirPocketX, dirPocketZ, 
+      target, difficulty, diffMaxCutAngle, bodies, true, bounceZ
+    );
+  }
+
+  // ─── Общее сканирование позиций и скоринг ────────────────────────────────────
+
+  _scanAndScore(idealX, contactX, contactZ, distToPocket, dirPocketX, dirPocketZ, 
+                target, difficulty, diffMaxCutAngle, bodies, isBankShot, bounceZ = 0) {
+    const scanMin = Math.max(PLAYER_LINE_MIN_X, idealX - X_SCAN_RADIUS);
+    const scanMax = Math.min(PLAYER_LINE_MAX_X, idealX + X_SCAN_RADIUS);
+
+    let bestLocalShot = null;
+    let bestLocalScore = Infinity;
+
+    for (let x = scanMin; x <= scanMax; x += X_SCAN_STEP) {
+      if (!this._isPlacementValid(x, bodies)) continue;
+
+      let dirHitX, dirHitZ, distToContact;
+      let cutAngle;
+
+      if (isBankShot) {
+        const dZ1 = PLAYER_2_LINE_Z - bounceZ;
+        const dZ2 = contactZ - bounceZ;
+        const ratio = dZ1 / (dZ1 + dZ2);
+        
+        const hitBordX = x + (contactX - x) * ratio;
+        
+        const toBoardX = hitBordX - x;
+        const toBoardZ = bounceZ - PLAYER_2_LINE_Z;
+        const dist1 = Math.sqrt(toBoardX * toBoardX + toBoardZ * toBoardZ);
+        
+        const toContactX = contactX - hitBordX;
+        const toContactZ = contactZ - bounceZ;
+        const dist2 = Math.sqrt(toContactX * toContactX + toContactZ * toContactZ);
+        
+        if (dist1 < 0.001 || dist2 < 0.001) continue;
+        
+        dirHitX = toBoardX / dist1;
+        dirHitZ = toBoardZ / dist1;
+        distToContact = dist1 + dist2;
+
+        const afterBounceDirX = toContactX / dist2;
+        const afterBounceDirZ = toContactZ / dist2;
+
+        const dot = afterBounceDirX * dirPocketX + afterBounceDirZ * dirPocketZ;
+        cutAngle = Math.acos(Math.min(1.0, Math.max(-1.0, dot)));
+
+        const strikerBody = this.orchestrator.rules.strikerEntry.body;
+        if (!this._isSegmentClear(x, PLAYER_2_LINE_Z, hitBordX, bounceZ, strikerBody)) continue;
+        if (!this._isSegmentClear(hitBordX, bounceZ, contactX, contactZ, strikerBody, target.entry.body)) continue;
+
+      } else {
+        const toContactX = contactX - x;
+        const toContactZ = contactZ - PLAYER_2_LINE_Z;
+        distToContact = Math.sqrt(toContactX * toContactX + toContactZ * toContactZ);
+        if (distToContact < 0.001) continue;
+
+        dirHitX = toContactX / distToContact;
+        dirHitZ = toContactZ / distToContact;
+
+        const dot = dirHitX * dirPocketX + dirHitZ * dirPocketZ;
+        cutAngle = Math.acos(Math.min(1.0, Math.max(-1.0, dot)));
+
+        const strikerBody = this.orchestrator.rules.strikerEntry.body;
+        if (!this._isSegmentClear(x, PLAYER_2_LINE_Z, contactX, contactZ, strikerBody, target.entry.body)) continue;
+      }
+
+      if (cutAngle > diffMaxCutAngle) continue;
+
+      const totalDist = distToContact + distToPocket;
+      let score = totalDist + cutAngle * CUT_ANGLE_WEIGHT;
+
+      if (target.isQueen) score -= QUEEN_BONUS;
+      if (isBankShot) score += BANK_SHOT_PENALTY;
+      if (!isBankShot && dirHitZ < 0) score += BACKWARD_SHOT_PENALTY;
+
+      // Избегаем идеально прямых ударов, чтобы биток не падал вслед за фишкой (скретч)
+      if (!isBankShot && cutAngle < 0.08) {
+        score += 0.5; // Штраф за слишком прямой удар
+      }
+
+      if (score < bestLocalScore) {
+        bestLocalScore = score;
+        
+        const finalForce = this._calculateForce(distToContact, distToPocket, cutAngle, difficulty, isBankShot);
+
+        bestLocalShot = {
+          strikerX: x,
+          impulse: new THREE.Vector3(dirHitX, 0, dirHitZ).multiplyScalar(finalForce),
+        };
+      }
+    }
+
+    return bestLocalShot ? { shot: bestLocalShot, score: bestLocalScore } : null;
+  }
+
+  // ─── Вычисление силы удара ───────────────────────────────────────────────────
+
+  _calculateForce(distToContact, distToPocket, cutAngle, difficulty, isBankShot = false) {
+    if (this.orchestrator.rules._isFirstStrike) {
+      return PHYSICS.maxPullDistance;
+    }
+
+    let GLOBAL_FORCE_MULTIPLIER = 0.4; // <- Коэффициент снижения силы всех ударов
+    
+    // При ударе от борта часть энергии гасится, поэтому бьем сильнее
+    if (isBankShot) {
+      GLOBAL_FORCE_MULTIPLIER *= 1.5; 
+    }
+
+    const MULTIPLIER = 2.0 * GLOBAL_FORCE_MULTIPLIER;
+    const baseForce = 0.015 * GLOBAL_FORCE_MULTIPLIER;
+    const forceForDist = (distToContact * 0.08 + distToPocket * 0.04) * MULTIPLIER;
+    
+    let cutCompensation = 1.0;
+    if (cutAngle > 0.01) {
+        const cosAngle = Math.max(0.2, Math.cos(cutAngle));
+        cutCompensation = 1.0 / cosAngle;
+    }
+
+    let force = baseForce + forceForDist * cutCompensation;
+    
+    if (difficulty === 1) force *= (1.0 + (Math.random() - 0.5) * 0.2);
+    else if (difficulty === 2) force *= (1.0 + (Math.random() - 0.5) * 0.1);
+
+    return THREE.MathUtils.clamp(force, 0.02, PHYSICS.maxPullDistance);
+  }
+
   // ─── Определение разрешённых целей ───────────────────────────────────────────
 
   /**
@@ -277,6 +381,7 @@ export class AIBotManager {
     const queenState = state.queenState;
     const score = state.score;
     const targets = [];
+    const myScore = myColor ? (score[myColor] || 0) : 0;
 
     // Если Королева забита и требует покрытия (Cover) →
     // бот ОБЯЗАН бить только фишки своего цвета
@@ -305,24 +410,23 @@ export class AIBotManager {
         continue;
       }
 
-      // Свои фишки — всегда валидны
+      // Свои фишки
       if (type === myColor) {
+        // Если осталась последняя своя фишка (8 забито), а Королева еще на столе →
+        // свою фишку забивать нельзя, иначе проигрыш/штраф!
+        if (queenState === 'on_board' && myScore === 8) {
+          continue; 
+        }
         targets.push({ entry, isQueen: false });
         continue;
       }
 
-      // Королева на столе — проверяем легальность
+      // Королева на столе
       if (type === 'queen' && queenState === 'on_board') {
-        const myScore = score[myColor] || 0;
-
-        // Нельзя бить Королеву, если нет ни одной забитой фишки своего цвета
+        // Нельзя бить Королеву первым же ударом (пока нет забитых своих фишек)
         if (myScore === 0) continue;
 
-        // Нельзя бить Королеву, если она будет «последней»
-        // (все 9 своих забиты — это невозможно, но 8 забито и Королева не покрыта)
-        if (myScore >= 8) continue;
-
-        // Легально → добавляем с максимальным приоритетом (isQueen = true)
+        // Легально → добавляем с приоритетом (isQueen = true)
         targets.push({ entry, isQueen: true });
       }
     }
@@ -368,13 +472,9 @@ export class AIBotManager {
     const dirZ = pos.z - PLAYER_2_LINE_Z;
     const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
 
-    // Если dirZ получается слишком мал (или назад), просто бьем вперед
+    // Если dirZ получается слишком мал (или назад), просто бьем по вектору
     let finalDirX = dirX / len;
     let finalDirZ = dirZ / len;
-    if (finalDirZ < 0.01) {
-      finalDirX = 0;
-      finalDirZ = 1;
-    }
 
     // Сила удара: делаем чуть сильнее чтобы разорвать кластер
     let force = 0.06 + Math.random() * 0.04;
