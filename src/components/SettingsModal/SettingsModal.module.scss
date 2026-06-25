@@ -8,9 +8,9 @@
 $glass-bg:        rgba(15, 15, 22, 0.82);
 $glass-border:    rgba(255, 255, 255, 0.10);
 $glass-highlight: rgba(255, 255, 255, 0.05);
-$accent:          #4f8cff;
-$accent-glow:     rgba(79, 140, 255, 0.35);
-$accent-2:        #a78bfa;
+$accent:          #00c897;
+$accent-glow:     rgba(0, 200, 151, 0.35);
+$accent-2:        #009688;
 $text-primary:    #f1f1f5;
 $text-secondary:  #9090a0;
 $radius-lg:       20px;
@@ -51,7 +51,7 @@ $radius-sm:       8px;
   box-shadow:
     0 0 0 1px $glass-highlight inset,
     0 32px 80px rgba(0, 0, 0, 0.70),
-    0 0 60px rgba(79, 140, 255, 0.08);
+    0 0 60px rgba(0, 200, 151, 0.08);
   padding: clamp(16px, 3vw, 28px);
   animation: modalIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 
@@ -359,10 +359,10 @@ $radius-sm:       8px;
 }
 
 .skinBtnActive {
-  background: linear-gradient(135deg, rgba(79,140,255,0.25), rgba(167,139,250,0.18));
+  background: linear-gradient(135deg, rgba(0,200,151,0.25), rgba(0,150,136,0.18));
   border-color: $accent;
   color: #fff;
-  box-shadow: 0 0 10px rgba(79, 140, 255, 0.20);
+  box-shadow: 0 0 10px rgba(0, 200, 151, 0.20);
 }
 
 // ── Radio Group (Turn Time) ───────────────────────────────────────────────────

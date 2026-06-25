@@ -3,9 +3,9 @@
 // ── Shared tokens ─────────────────────────────────────────────────────────────
 $glass-bg:    rgba(15, 15, 22, 0.92);
 $glass-border: rgba(255, 255, 255, 0.10);
-$accent:       #4f8cff;
-$accent-glow:  rgba(79, 140, 255, 0.40);
-$accent-2:     #a78bfa;
+$accent:       #00c897;
+$accent-glow:  rgba(0, 200, 151, 0.40);
+$accent-2:     #009688;
 $gold:         #e8c46a;
 $gold-dark:    #c99430;
 $text-primary:   #f1f1f5;
@@ -45,7 +45,7 @@ $radius-md:      12px;
   box-shadow:
     0 0 0 1px rgba(255,255,255,0.05) inset,
     0 24px 64px rgba(0, 0, 0, 0.65),
-    0 0 60px rgba(79, 140, 255, 0.06);
+    0 0 60px rgba(0, 200, 151, 0.06);
   color: $text-primary;
   min-width: min(300px, 90vw);
   max-width: min(420px, 95vw);

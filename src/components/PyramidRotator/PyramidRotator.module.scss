@@ -5,9 +5,9 @@
 
 $glass-bg:      rgba(15, 15, 22, 0.88);
 $glass-border:  rgba(255, 255, 255, 0.12);
-$accent:        #4f8cff;
-$accent-2:      #a78bfa;
-$accent-glow:   rgba(79, 140, 255, 0.40);
+$accent:        #00c897;
+$accent-2:      #009688;
+$accent-glow:   rgba(0, 200, 151, 0.40);
 $gold:          #e8c46a;
 $gold-dark:     #c99430;
 $gold-glow:     rgba(200, 148, 48, 0.50);
@@ -54,7 +54,7 @@ $text-muted:    #8888a0;
   box-shadow:
     0 0 0 1px rgba(255,255,255,0.06) inset,
     0 24px 60px rgba(0, 0, 0, 0.55),
-    0 0 40px rgba(79, 140, 255, 0.08);
+    0 0 40px rgba(0, 200, 151, 0.08);
 
   // Блик сверху
   &::before {
@@ -84,7 +84,7 @@ $text-muted:    #8888a0;
 .icon {
   font-size: 1.1rem;
   line-height: 1;
-  filter: drop-shadow(0 0 6px rgba(79, 140, 255, 0.5));
+  filter: drop-shadow(0 0 6px rgba(0, 200, 151, 0.5));
 }
 
 .title {
@@ -154,7 +154,7 @@ $text-muted:    #8888a0;
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #fff 30%, #c8d8ff 100%);
+    background: linear-gradient(135deg, #fff 30%, #c8f5e2 100%);
     box-shadow:
       0 0 0 3px $accent,
       0 0 16px $accent-glow,
@@ -170,7 +170,7 @@ $text-muted:    #8888a0;
     transform: scale(1.15);
     box-shadow:
       0 0 0 3px $accent,
-      0 0 22px rgba(79,140,255,0.70),
+      0 0 22px rgba(0,200,151,0.70),
       0 3px 12px rgba(0,0,0,0.5);
   }
 
@@ -179,7 +179,7 @@ $text-muted:    #8888a0;
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #fff 30%, #c8d8ff 100%);
+    background: linear-gradient(135deg, #fff 30%, #c8f5e2 100%);
     border: 3px solid $accent;
     box-shadow: 0 0 14px $accent-glow;
     cursor: grab;
