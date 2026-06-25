@@ -77,6 +77,13 @@ export class AIBotManager {
     if (state.currentPlayer !== 2) return;
     if (state.gamePhase === 'PLACEMENT' && !this.isThinking && state.isReady) {
       this.isThinking = true;
+      
+      // Если бот ходит первым, то он не вращает пирамиду, 
+      // а просто сразу применяет её текущее (дефолтное) состояние
+      if (!state.isPyramidLocked) {
+        this.orchestrator.applyPyramidRotation();
+      }
+
       // Задержка для «человечного» ощущения
       setTimeout(() => this.playTurn(), 1000);
     } else if (state.gamePhase !== 'PLACEMENT' && state.gamePhase !== 'AIMING') {
