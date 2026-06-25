@@ -183,7 +183,7 @@ export const MainMenu = ({ onOpenSettings, isSettingsOpen, settingsTab }) => {
           </div>
         )}
       </div>
-      <div className={styles.versionText}>Version 1.3.0
+      <div className={styles.versionText}>Version 1.4.0
         <br />
         All rights reserved 2026 ©
       </div>

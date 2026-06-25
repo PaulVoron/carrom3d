@@ -44,10 +44,10 @@ const DEFAULT_SETTINGS = {
     coinSkinId:     'blackWhite',
     boardSurfaceId: 'plywood_0',
     boardPatternId: 'classic',
-    frameId:        'naturel',
+    frameId:        'noten_elite', 
     frameFinish:    'matte',     // 'matte' | 'glossy'
-    pocketCornerId: 'sameAsFrame',
-    environmentId:  'neutral',
+    pocketCornerId: 'silver', // 'sameAsFrame' | 'black' | 'white' | 'silver'
+    environmentId:  'studio', // 'studio' | 'neutral'
   },
 };
 
