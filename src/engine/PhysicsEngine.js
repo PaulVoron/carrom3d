@@ -399,20 +399,34 @@ export class PhysicsEngine {
       if (!body.isEnabled() || body.bodyType() !== RAPIER.RigidBodyType.Dynamic) continue;
 
       const rot = body.rotation();
+      this._tmpQuat.set(rot.x, rot.y, rot.z, rot.w);
+      
       // Вычисляем компоненту Y локального вектора «Вверх».
-      // Для кватерниона q, Y-компонента повернутого вектора (0, 1, 0):
-      // 1 - 2 * (q.x^2 + q.z^2)
-      const upY = 1 - 2 * (rot.x * rot.x + rot.z * rot.z);
+      const localUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this._tmpQuat);
+      const upY = localUp.y;
 
       const collider = body.collider(0);
       if (collider) {
-        if (Math.abs(upY) < 0.8) {
-          // Объект стоит на ребре (наклон > ~36°):
-          // — снижаем упругость, чтобы он не отпрыгивал
-          // — очень сильно увеличиваем затухание, чтобы он быстро остановился и не катился долго
-          collider.setRestitution(0.0);
-          body.setLinearDamping(6.5);
-          body.setAngularDamping(10.0);
+        if (Math.abs(upY) < 0.98) {
+          // Объект стоит на ребре или наклонен:
+          // — снижаем упругость, чтобы он не прыгал
+          // — делаем затухание небольшим (ранее было 6.5/10), чтобы фишка могла немного покатиться и её было легко сбить
+          collider.setRestitution(PHYSICS.restitution * 0.4);
+          body.setLinearDamping(1.2);
+          body.setAngularDamping(1.5);
+
+          // Искусственно «заваливаем» фишку плашмя, чтобы она не зависала на ребре
+          const targetUpY = upY >= 0 ? 1 : -1;
+          const worldUp = new THREE.Vector3(0, targetUpY, 0);
+          const torqueVec = new THREE.Vector3().crossVectors(localUp, worldUp);
+          
+          // Малая сила импульса (I ≈ 3.4e-7), чтобы фишка плавно легла
+          const torqueForce = 0.0000002; 
+          body.applyTorqueImpulse({
+            x: torqueVec.x * torqueForce,
+            y: torqueVec.y * torqueForce,
+            z: torqueVec.z * torqueForce
+          }, true);
         } else {
           // Нормальное положение — возвращаем штатные параметры
           collider.setRestitution(PHYSICS.restitution);
