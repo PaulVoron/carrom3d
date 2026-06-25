@@ -92,13 +92,36 @@ $radius-sm:       8px;
 // ── Title ─────────────────────────────────────────────────────────────────────
 .title {
   font-family: $font-primary;
-  font-size: clamp(2rem, 7vw, 3rem);
-  margin-bottom: clamp(10px, 2vh, 18px);
-  font-weight: 800;
-  background: linear-gradient(135deg, #fff 30%, $accent 100%);
+  font-size: clamp(2.2rem, 7vw, 3.4rem);
+  margin-bottom: clamp(12px, 2.5vh, 22px);
+  font-weight: 900;
+  background: linear-gradient(180deg, #ffffff 40%, #c5dfd6 100%); // sleek metallic silver/mint gradient
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  letter-spacing: -0.01em;
+  filter: drop-shadow(0 4px 16px rgba(0, 200, 151, 0.15));
+}
+
+.title3d {
+  display: inline-block;
+  font-size: 0.7em;
+  font-weight: 900;
+  font-style: italic;
+  padding: 2px 10px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, $accent 0%, $accent-2 100%);
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff; // overrides parent's transparent text-fill
+  box-shadow: 0 4px 12px rgba(0, 200, 151, 0.4);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  transform: skewX(-8deg) translateY(-2px);
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 // ── Settings button ───────────────────────────────────────────────────────────
@@ -233,6 +256,65 @@ $radius-sm:       8px;
     height: 1px;
     background: $glass-border;
     margin: 0 10px;
+  }
+}
+
+// ── Online Section ─────────────────────────────────────────────────────────────
+.onlineSection {
+  margin-top: 6px;
+  padding: 16px;
+  border-radius: $radius-md;
+  background: rgba(0, 200, 151, 0.035); // subtle mint tint
+  border: 1.5px solid rgba(0, 200, 151, 0.14); // soft mint border
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.onlineTitle {
+  font-family: $font-primary;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #00c897; // mint accent
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &::before, &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(0, 200, 151, 0.15);
+  }
+}
+
+.onlineButton {
+  padding: clamp(10px, 2vh, 14px) 20px;
+  border-radius: $radius-md;
+  font-family: $font-primary;
+  font-size: clamp(0.88rem, 2.5vw, 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  color: #fff;
+  background: rgba(0, 200, 151, 0.08);
+  border: 1.5px solid rgba(0, 200, 151, 0.24);
+
+  &:hover {
+    background: rgba(0, 200, 151, 0.18);
+    border-color: #00c897;
+    box-shadow: 0 0 12px rgba(0, 200, 151, 0.25);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 

@@ -107,7 +107,9 @@ export const MainMenu = ({ onOpenSettings, isSettingsOpen, settingsTab }) => {
   return (
     <div className={`${styles.overlay} ${isCustomizeOpen ? styles.overlayShiftedLeft : ''}`}>
       <div className={styles.menuCard}>
-        <h1 className={styles.title}>{t('menu.title')}</h1>
+        <h1 className={styles.title}>
+          Carrom <span className={styles.title3d}>3D</span>
+        </h1>
         
         {/* Кнопка настроек */}
         {onOpenSettings && (
@@ -161,21 +163,24 @@ export const MainMenu = ({ onOpenSettings, isSettingsOpen, settingsTab }) => {
                   {t('menu.challenge')}
                 </button>
                 <div className={styles.divider}>{t('menu.or')}</div>
-                <button className={styles.secondaryButton} onClick={createOnlineGame}>
-                  {t('menu.createGame')}
-                </button>
-                <div className={styles.joinContainer}>
-                  <input 
-                    type="text" 
-                    placeholder={t('menu.roomCodePlaceholder')}
-                    value={joinCode}
-                    onChange={e => setJoinCode(e.target.value.toUpperCase())}
-                    className={styles.input}
-                    maxLength={4}
-                  />
-                  <button className={styles.secondaryButton} onClick={joinOnlineGame}>
-                    {t('menu.joinGame')}
+                <div className={styles.onlineSection}>
+                  <h3 className={styles.onlineTitle}>{t('menu.onlineSection')}</h3>
+                  <button className={styles.onlineButton} onClick={createOnlineGame}>
+                    {t('menu.createGame')}
                   </button>
+                  <div className={styles.joinContainer}>
+                    <input 
+                      type="text" 
+                      placeholder={t('menu.roomCodePlaceholder')}
+                      value={joinCode}
+                      onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                      className={styles.input}
+                      maxLength={4}
+                    />
+                    <button className={styles.onlineButton} onClick={joinOnlineGame}>
+                      {t('menu.joinGame')}
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -183,7 +188,7 @@ export const MainMenu = ({ onOpenSettings, isSettingsOpen, settingsTab }) => {
           </div>
         )}
       </div>
-      <div className={styles.versionText}>Version 1.4.0
+      <div className={styles.versionText}>Version 1.4.2
         <br />
         All rights reserved 2026 ©
       </div>
